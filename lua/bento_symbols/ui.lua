@@ -747,13 +747,13 @@ local function render_expanded(is_minimal_full)
         local item = entry.item
         local label = smart_labels[i] or " "
         local indent = string.rep(indent_unit, entry.depth)
-        local has_children = item.children and #item.children > 0
-        local indicator = (entry.depth == 0 and has_children) and "──" or "─"
+        local indicator = ""
         local kind_suffix = ""
         if config.symbols.show_kind and item.kind_name then
             kind_suffix = " [" .. item.kind_name .. "]"
         end
-        local display_name = indent .. indicator .. " " .. item.name .. kind_suffix
+        local spacer = indicator ~= "" and (indicator .. " ") or ""
+        local display_name = indent .. spacer .. item.name .. kind_suffix
         local content_width = vim.fn.strwidth(display_name)
             + 1
             + padding
@@ -824,10 +824,7 @@ local function render_expanded(is_minimal_full)
             )
             if current_id and visible_items[i].item.id == current_id then
                 local item = visible_items[i].item
-                local item_indicator = "──"
                 local name_prefix = string.rep(indent_unit, visible_items[i].depth)
-                    .. item_indicator
-                    .. " "
                 local name_start = display_name_start + #name_prefix
                 local name_end = name_start + #item.name
                 vim.api.nvim_buf_add_highlight(
@@ -1074,10 +1071,10 @@ function M.handle_main_keymap()
     setup_state()
 
     if win_id and vim.api.nvim_win_is_valid(win_id) then
-        if not is_expanded then
-            M.expand_menu()
+        if is_expanded then
+            M.collapse_menu()
         else
-            refresh_symbols()
+            M.expand_menu()
         end
         return
     end
@@ -1137,6 +1134,9 @@ end
 function M.prev_page()
     local _, _, needs_pagination = get_pagination_info()
     if not needs_pagination then
+        if #state.path == 0 then
+            M.collapse_menu()
+        end
         return
     end
     if current_page > 1 then
@@ -1146,6 +1146,8 @@ function M.prev_page()
         else
             render_collapsed()
         end
+    elseif #state.path == 0 then
+        M.collapse_menu()
     end
 end
 
