@@ -81,6 +81,8 @@ require("bento_symbols").setup({
         indent = "  ", -- Indentation per tree depth
         view = "drilldown", -- "drilldown" | "flat"
         kind_highlights = {}, -- Override kind highlight groups by symbol kind id
+        sticky_highlight = false, -- Keep last seen symbol highlighted
+        fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
     },
     ui = {
         mode = "floating",

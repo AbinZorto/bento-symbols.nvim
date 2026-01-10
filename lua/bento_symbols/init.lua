@@ -86,6 +86,8 @@ function M.setup(config)
             indent = "  ",
             view = "drilldown", -- "drilldown" | "flat"
             kind_highlights = {},
+            sticky_highlight = false,
+            fuzzy_seen = true,
         },
         highlights = {
             symbol = "Normal",

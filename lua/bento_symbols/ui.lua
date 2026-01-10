@@ -17,6 +17,7 @@ local state = {
     path = {},
     last_bufnr = nil,
     pending = false,
+    last_seen_id = nil,
 }
 
 local line_keys = {
@@ -137,6 +138,10 @@ local symbol_kind_highlights = {
     [26] = "@lsp.type.typeParameter",
 }
 
+local function get_item_match_range(item)
+    return item.range or item.selection_range
+end
+
 local function range_contains(range, cursor)
     if not range or not range.start or not range["end"] then
         return false
@@ -160,6 +165,56 @@ local function range_contains(range, cursor)
     return true
 end
 
+local function range_touches_line(range, line)
+    if not range or not range.start or not range["end"] then
+        return false
+    end
+    local start_line = range.start.line or 0
+    local end_line = range["end"].line or 0
+    return line >= start_line and line <= end_line
+end
+
+local function line_distance_to_range(range, cursor)
+    if not range or not range.start or not range["end"] then
+        return math.huge
+    end
+    local line = cursor[1]
+    local col = cursor[2]
+    local start_line = range.start.line or 0
+    local start_col = range.start.character or 0
+    local end_line = range["end"].line or 0
+    local end_col = range["end"].character or 0
+
+    if line < start_line or line > end_line then
+        return math.huge
+    end
+
+    if start_line == end_line then
+        if col < start_col then
+            return start_col - col
+        elseif col > end_col then
+            return col - end_col
+        end
+        return 0
+    end
+
+    if line == start_line then
+        if col < start_col then
+            return start_col - col
+        end
+        return 0
+    end
+
+    if line == end_line then
+        if col > end_col then
+            return col - end_col
+        end
+        return 0
+    end
+
+    return 0
+end
+
 local function range_size(range)
     if not range or not range.start or not range["end"] then
         return math.huge
@@ -171,14 +226,21 @@ local function range_size(range)
     return (end_line - start_line) * 100000 + (end_col - start_col)
 end
 
-local function find_best_visible_symbol_id(visible_items, cursor)
+local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
     local best_id = nil
     local best_size = math.huge
+    local best_dist = math.huge
     for _, entry in ipairs(visible_items) do
         local item = entry.item
-        if range_contains(item.range, cursor) then
-            local size = range_size(item.range)
-            if size < best_size then
+        local range = get_item_match_range(item)
+        local matches = fuzzy and range_touches_line(range, cursor[1])
+            or range_contains(range, cursor)
+        if matches then
+            local size = range_size(range)
+            local dist = fuzzy and line_distance_to_range(range, cursor)
+                or 0
+            if dist < best_dist or (dist == best_dist and size < best_size) then
+                best_dist = dist
                 best_size = size
                 best_id = item.id
             end
@@ -193,10 +255,26 @@ local function get_current_symbol_id_for_visible(visible_items)
         return nil
     end
     local cursor = vim.api.nvim_win_get_cursor(0)
-    return find_best_visible_symbol_id(visible_items, {
+    local fuzzy = config.symbols.fuzzy_seen ~= false
+    local current = find_best_visible_symbol_id(visible_items, {
         cursor[1] - 1,
         cursor[2],
-    })
+    }, fuzzy)
+
+    if current then
+        state.last_seen_id = current
+        return current
+    end
+
+    if config.symbols.sticky_highlight and state.last_seen_id then
+        for _, entry in ipairs(visible_items) do
+            if entry.item.id == state.last_seen_id then
+                return state.last_seen_id
+            end
+        end
+    end
+
+    return nil
 end
 
 local function get_current_highlight()
@@ -919,6 +997,7 @@ local function apply_symbols(result, bufnr)
     local items = normalize_symbols(result, bufnr)
     state.items = items
     state.path = {}
+    state.last_seen_id = nil
     refresh_visible_items()
 
     if #state.visible_items == 0 then
@@ -1064,6 +1143,7 @@ function M.expand_menu()
         return
     end
     is_expanded = true
+    refresh_symbols()
     render_expanded()
 end
 
@@ -1171,6 +1251,8 @@ function M.toggle_view()
         config.symbols.view = "flat"
     end
     state.path = {}
+    state.last_seen_id = nil
+    refresh_symbols()
     refresh_visible_items()
     if win_id and vim.api.nvim_win_is_valid(win_id) then
         if is_expanded then

@@ -21,6 +21,8 @@ Example:
           indent = "  ",
           view = "drilldown", -- "drilldown" | "flat"
           kind_highlights = {},
+          sticky_highlight = false,
+          fuzzy_seen = true,
       },
       ui = {
           mode = "floating",
@@ -63,4 +65,3 @@ NOTES                                                        *bento-symbols-note
 
 If your LSP server returns SymbolInformation instead of DocumentSymbol, the
 list is flat and drilldown behaves like flat mode.
-
