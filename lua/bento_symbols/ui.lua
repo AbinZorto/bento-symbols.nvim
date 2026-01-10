@@ -255,6 +255,27 @@ local function get_current_symbol_id_for_visible(visible_items)
         return nil
     end
     local cursor = vim.api.nvim_win_get_cursor(0)
+    local cursor_pos = { cursor[1] - 1, cursor[2] }
+    if config.symbols.view == "drilldown" then
+        if #state.path > 0 then
+            local scope_range = get_item_match_range(state.path[#state.path])
+            if not range_contains(scope_range, cursor_pos) then
+                return nil
+            end
+        else
+            local in_any_top = false
+            for _, item in ipairs(state.items) do
+                local range = get_item_match_range(item)
+                if range_contains(range, cursor_pos) then
+                    in_any_top = true
+                    break
+                end
+            end
+            if not in_any_top then
+                return nil
+            end
+        end
+    end
     local fuzzy = config.symbols.fuzzy_seen ~= false
     local current = find_best_visible_symbol_id(visible_items, {
         cursor[1] - 1,
