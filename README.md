@@ -83,6 +83,8 @@ require("bento_symbols").setup({
         kind_highlights = {}, -- Override kind highlight groups by symbol kind id
         sticky_highlight = false, -- Keep last seen symbol highlighted
         fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
+        auto_page_flat = true, -- Auto-switch page to show current symbol in flat view
+        parent_marker = "·", -- Marker shown for parent symbols
     },
     ui = {
         mode = "floating",
@@ -101,6 +103,17 @@ require("bento_symbols").setup({
             collapse = "<ESC>",
             toggle_view = nil, -- map to :BentoSymbolsToggleView
         },
+    },
+})
+```
+
+## Highlights
+
+```lua
+require("bento_symbols").setup({
+    highlights = {
+        symbol = "Normal",
+        current = "Visual",
     },
 })
 ```

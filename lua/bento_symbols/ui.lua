@@ -18,6 +18,7 @@ local state = {
     last_bufnr = nil,
     pending = false,
     last_seen_id = nil,
+    by_id = {},
 }
 
 local line_keys = {
@@ -215,6 +216,18 @@ local function line_distance_to_range(range, cursor)
     return 0
 end
 
+local function distance_for_item(item, cursor)
+    local selection = item.selection_range
+    if selection and selection.start and selection["end"] then
+        return line_distance_to_range(selection, cursor)
+    end
+    local range = item.range
+    if range then
+        return line_distance_to_range(range, cursor)
+    end
+    return math.huge
+end
+
 local function range_size(range)
     if not range or not range.start or not range["end"] then
         return math.huge
@@ -230,18 +243,27 @@ local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
     local best_id = nil
     local best_size = math.huge
     local best_dist = math.huge
+    local best_depth = -1
     for _, entry in ipairs(visible_items) do
         local item = entry.item
         local range = get_item_match_range(item)
-        local matches = fuzzy and range_touches_line(range, cursor[1])
-            or range_contains(range, cursor)
+        local matches = false
+        if fuzzy then
+            matches = range and range_touches_line(range, cursor[1]) or false
+        else
+            matches = range and range_contains(range, cursor) or false
+        end
         if matches then
             local size = range_size(range)
-            local dist = fuzzy and line_distance_to_range(range, cursor)
-                or 0
-            if dist < best_dist or (dist == best_dist and size < best_size) then
+            local dist = fuzzy and distance_for_item(item, cursor) or 0
+            local depth = entry.depth or 0
+            if dist < best_dist
+                or (dist == best_dist and size < best_size)
+                or (dist == best_dist and size == best_size and depth > best_depth)
+            then
                 best_dist = dist
                 best_size = size
+                best_depth = depth
                 best_id = item.id
             end
         end
@@ -283,6 +305,24 @@ local function get_current_symbol_id_for_visible(visible_items)
     }, fuzzy)
 
     if current then
+        if
+            config.symbols.view == "flat"
+            and state.last_seen_id
+            and current ~= state.last_seen_id
+        then
+            local ancestor = state.by_id[state.last_seen_id]
+            while ancestor and ancestor.parent_id do
+                if ancestor.parent_id == current then
+                    for _, entry in ipairs(visible_items) do
+                        if entry.item.id == state.last_seen_id then
+                            return state.last_seen_id
+                        end
+                    end
+                    break
+                end
+                ancestor = state.by_id[ancestor.parent_id]
+            end
+        end
         state.last_seen_id = current
         return current
     end
@@ -296,6 +336,16 @@ local function get_current_symbol_id_for_visible(visible_items)
     end
 
     return nil
+end
+
+local function get_parent_ids(current_id)
+    local parents = {}
+    local item = current_id and state.by_id[current_id] or nil
+    while item and item.parent_id do
+        parents[item.parent_id] = true
+        item = state.by_id[item.parent_id]
+    end
+    return parents
 end
 
 
@@ -332,7 +382,7 @@ local function get_symbol_id(name, range, kind)
     )
 end
 
-local function normalize_document_symbol(symbol, bufnr)
+local function normalize_document_symbol(symbol, bufnr, parent_id)
     local selection = symbol.selectionRange or symbol.range
     local id = get_symbol_id(symbol.name, selection, symbol.kind)
     local item = {
@@ -343,11 +393,12 @@ local function normalize_document_symbol(symbol, bufnr)
         range = symbol.range,
         selection_range = selection,
         bufnr = bufnr,
+        parent_id = parent_id,
         children = {},
     }
     if symbol.children and #symbol.children > 0 then
         for _, child in ipairs(symbol.children) do
-            table.insert(item.children, normalize_document_symbol(child, bufnr))
+            table.insert(item.children, normalize_document_symbol(child, bufnr, id))
         end
     end
     return item
@@ -366,6 +417,7 @@ local function normalize_symbol_information(symbol)
         range = range,
         selection_range = range,
         bufnr = bufnr,
+        parent_id = nil,
         children = {},
     }
 end
@@ -377,7 +429,7 @@ local function normalize_symbols(result, bufnr)
     if result[1] and result[1].range then
         local out = {}
         for _, symbol in ipairs(result) do
-            table.insert(out, normalize_document_symbol(symbol, bufnr))
+            table.insert(out, normalize_document_symbol(symbol, bufnr, nil))
         end
         return out
     end
@@ -420,6 +472,15 @@ local function refresh_visible_items()
     state.visible_items = visible
 end
 
+local function index_items(items)
+    for _, item in ipairs(items) do
+        state.by_id[item.id] = item
+        if item.children and #item.children > 0 then
+            index_items(item.children)
+        end
+    end
+end
+
 local function get_pagination_info()
     local max_rendered = config.ui.floating.max_rendered_items
 
@@ -448,6 +509,9 @@ end
 
 local function ensure_current_symbol_page_flat()
     if config.symbols.view ~= "flat" then
+        return
+    end
+    if config.symbols.auto_page_flat == false then
         return
     end
     local max_per_page, _, needs_pagination = get_pagination_info()
@@ -802,7 +866,9 @@ local function render_dashed()
     local padding_str = string.rep(" ", padding)
     local dash = "──"
     local marker = "▸"
+    local parent_marker = config.symbols.parent_marker or "·"
     local current_id = get_current_symbol_id_for_visible(visible_items)
+    local parent_ids = current_id and get_parent_ids(current_id) or {}
 
     if #visible_items == 0 then
         contents[1] = padding_str .. dash .. padding_str
@@ -820,7 +886,12 @@ local function render_dashed()
         local entry = visible_items[i]
         local has_children = entry.item.children and #entry.item.children > 0
         local indicator = (entry.depth == 0 and has_children) and "──" or "─"
-        local mark = (current_id and entry.item.id == current_id) and marker or " "
+        local mark = " "
+        if current_id and entry.item.id == current_id then
+            mark = marker
+        elseif parent_ids[entry.item.id] then
+            mark = parent_marker
+        end
         contents[i] = padding_str .. mark .. indicator .. padding_str
     end
 
@@ -867,6 +938,8 @@ local function render_expanded(is_minimal_full)
     local smart_labels = assign_smart_labels(visible_items, line_keys)
     local current_id = get_current_symbol_id_for_visible(visible_items)
     local current_hl = current_id and get_current_highlight() or nil
+    local parent_ids = current_id and get_parent_ids(current_id) or {}
+    local parent_marker = config.symbols.parent_marker or "·"
     local contents = {}
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
@@ -892,12 +965,17 @@ local function render_expanded(is_minimal_full)
         local label = smart_labels[i] or " "
         local indent = string.rep(indent_unit, entry.depth)
         local indicator = ""
+        local parent_mark = parent_ids[item.id] and (parent_marker .. " ") or ""
         local kind_suffix = ""
         if config.symbols.show_kind and item.kind_name then
             kind_suffix = " [" .. item.kind_name .. "]"
         end
         local spacer = indicator ~= "" and (indicator .. " ") or ""
-        local display_name = indent .. spacer .. item.name .. kind_suffix
+        local display_name = indent
+            .. parent_mark
+            .. spacer
+            .. item.name
+            .. kind_suffix
         local content_width = vim.fn.strwidth(display_name)
             + 1
             + padding
@@ -908,6 +986,7 @@ local function render_expanded(is_minimal_full)
             label = label,
             display_name = display_name,
             content_width = content_width,
+            name_prefix_len = #indent + #parent_mark + #spacer,
         })
     end
 
@@ -968,8 +1047,8 @@ local function render_expanded(is_minimal_full)
             )
             if current_id and visible_items[i].item.id == current_id then
                 local item = visible_items[i].item
-                local name_prefix = string.rep(indent_unit, visible_items[i].depth)
-                local name_start = display_name_start + #name_prefix
+                local name_prefix_len = all_line_data[i].name_prefix_len
+                local name_start = display_name_start + name_prefix_len
                 local name_end = name_start + #item.name
                 vim.api.nvim_buf_add_highlight(
                     bufh,
@@ -1052,6 +1131,8 @@ local function apply_symbols(result, bufnr)
     state.items = items
     state.path = {}
     state.last_seen_id = nil
+    state.by_id = {}
+    index_items(items)
     refresh_visible_items()
 
     if #state.visible_items == 0 then

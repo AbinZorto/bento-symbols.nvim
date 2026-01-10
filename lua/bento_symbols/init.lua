@@ -88,6 +88,8 @@ function M.setup(config)
             kind_highlights = {},
             sticky_highlight = false,
             fuzzy_seen = true,
+            auto_page_flat = true,
+            parent_marker = "·",
         },
         highlights = {
             symbol = "Normal",
