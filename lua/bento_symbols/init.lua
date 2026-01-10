@@ -73,6 +73,8 @@ function M.setup(config)
                 label_padding = 1,
                 minimal_menu = "dashed",
                 max_rendered_items = nil,
+                page_indicator = "auto", -- "auto" | "always" | "never"
+                page_indicator_style = "counter", -- "dots" | "counter"
             },
             keys = {
                 page_prev = "<C-h>",

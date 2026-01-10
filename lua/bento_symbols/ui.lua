@@ -563,18 +563,28 @@ end
 
 local function generate_pagination_indicator(width)
     local _, total_pages, needs_pagination = get_pagination_info()
-    if not needs_pagination then
+    local indicator_mode = config.ui.floating.page_indicator or "auto"
+    local show =
+        (indicator_mode == "always" and config.symbols.view == "flat")
+        or (indicator_mode == "auto" and needs_pagination and config.symbols.view == "flat")
+    if indicator_mode == "never" or not show then
         return nil
     end
-    local dots = {}
-    for i = 1, total_pages do
-        if i == current_page then
-            table.insert(dots, "*")
-        else
-            table.insert(dots, ".")
+    local indicator_style = config.ui.floating.page_indicator_style or "dots"
+    local indicator
+    if indicator_style == "counter" then
+        indicator = string.format("%d/%d", current_page, total_pages)
+    else
+        local dots = {}
+        for i = 1, total_pages do
+            if i == current_page then
+                table.insert(dots, "*")
+            else
+                table.insert(dots, ".")
+            end
         end
+        indicator = table.concat(dots, " ")
     end
-    local indicator = table.concat(dots, " ")
     local indicator_width = vim.fn.strwidth(indicator)
     local padding = width - indicator_width
     if padding < 0 then
@@ -860,7 +870,6 @@ local function render_dashed()
 
     setup_state()
     local visible_items = get_page_items()
-    local _, _, needs_pagination = get_pagination_info()
     local contents = {}
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
@@ -899,8 +908,14 @@ local function render_dashed()
     local total_width = dash_width + 1 + 2 * padding
     local total_height = #visible_items
 
-    if needs_pagination then
-        table.insert(contents, string.rep(" ", total_width))
+    local indicator = generate_pagination_indicator(total_width)
+    if indicator then
+        local indicator_width = vim.fn.strwidth(indicator)
+        if indicator_width > total_width then
+            total_width = indicator_width
+            indicator = generate_pagination_indicator(total_width)
+        end
+        table.insert(contents, indicator)
         total_height = total_height + 1
     end
 
@@ -1008,6 +1023,11 @@ local function render_expanded(is_minimal_full)
     if needs_pagination then
         local indicator = generate_pagination_indicator(total_width)
         if indicator then
+            local indicator_width = vim.fn.strwidth(indicator)
+            if indicator_width > total_width then
+                total_width = indicator_width
+                indicator = generate_pagination_indicator(total_width)
+            end
             table.insert(contents, indicator)
             total_height = total_height + 1
         end

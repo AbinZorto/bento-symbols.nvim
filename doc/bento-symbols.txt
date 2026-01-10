@@ -36,6 +36,8 @@ Example:
               label_padding = 1,
               minimal_menu = "dashed",
               max_rendered_items = nil,
+              page_indicator = "auto",
+              page_indicator_style = "counter",
           },
           keys = {
               page_prev = "<C-h>",

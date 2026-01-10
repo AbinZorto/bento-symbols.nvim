@@ -96,6 +96,8 @@ require("bento_symbols").setup({
             label_padding = 1,
             minimal_menu = "dashed", -- nil | "dashed" | "full"
             max_rendered_items = nil, -- nil (no limit) or number for pagination
+            page_indicator = "auto", -- "auto" | "always" | "never"
+            page_indicator_style = "counter", -- "dots" | "counter"
         },
         keys = {
             page_prev = "<C-h>",
