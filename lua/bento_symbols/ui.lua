@@ -277,6 +277,7 @@ local function get_current_symbol_id_for_visible(visible_items)
     return nil
 end
 
+
 local function get_current_highlight()
     return config.highlights.current or "Visual"
 end
@@ -422,6 +423,38 @@ local function get_pagination_info()
 
     local total_pages = math.ceil(#state.visible_items / effective_max)
     return effective_max, total_pages, true
+end
+
+local function ensure_current_symbol_page_flat()
+    if config.symbols.view ~= "flat" then
+        return
+    end
+    local max_per_page, _, needs_pagination = get_pagination_info()
+    if not needs_pagination then
+        return
+    end
+    local bufnr = vim.api.nvim_get_current_buf()
+    if state.last_bufnr and state.last_bufnr ~= bufnr then
+        return
+    end
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local fuzzy = config.symbols.fuzzy_seen ~= false
+    local current_id = find_best_visible_symbol_id(state.visible_items, {
+        cursor[1] - 1,
+        cursor[2],
+    }, fuzzy)
+    if not current_id then
+        return
+    end
+    for idx, entry in ipairs(state.visible_items) do
+        if entry.item.id == current_id then
+            local target_page = math.ceil(idx / max_per_page)
+            if current_page ~= target_page then
+                current_page = target_page
+            end
+            return
+        end
+    end
 end
 
 local function get_page_items()
@@ -1267,6 +1300,7 @@ function M.update_cursor_highlight()
     if not win_id or not vim.api.nvim_win_is_valid(win_id) then
         return
     end
+    ensure_current_symbol_page_flat()
     if is_expanded then
         render_expanded()
     else
