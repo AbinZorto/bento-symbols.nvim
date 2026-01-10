@@ -43,6 +43,14 @@ local function setup_autocmds()
         end,
         desc = "Refresh bento symbols on buffer change",
     })
+
+    vim.api.nvim_create_autocmd("CursorMoved", {
+        group = augroup,
+        callback = function()
+            require("bento_symbols.ui").update_cursor_highlight()
+        end,
+        desc = "Update current symbol highlight",
+    })
 end
 
 function M.get_config()
@@ -85,6 +93,7 @@ function M.setup(config)
             label_minimal = "Visual",
             window_bg = "BentoSymbolsNormal",
             page_indicator = "Comment",
+            current = "Visual",
         },
         actions = {
             jump = {

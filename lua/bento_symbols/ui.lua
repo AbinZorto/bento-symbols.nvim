@@ -137,6 +137,60 @@ local symbol_kind_highlights = {
     [26] = "@lsp.type.typeParameter",
 }
 
+local function range_contains(range, cursor)
+    if not range or not range.start or not range["end"] then
+        return false
+    end
+    local line = cursor[1]
+    local col = cursor[2]
+    local start_line = range.start.line or 0
+    local start_col = range.start.character or 0
+    local end_line = range["end"].line or 0
+    local end_col = range["end"].character or 0
+
+    if line < start_line or line > end_line then
+        return false
+    end
+    if line == start_line and col < start_col then
+        return false
+    end
+    if line == end_line and col > end_col then
+        return false
+    end
+    return true
+end
+
+local function find_top_level_symbol_at_cursor(items, cursor)
+    for _, item in ipairs(items) do
+        if range_contains(item.range, cursor) then
+            return item.id
+        end
+    end
+    return nil
+end
+
+local function get_current_symbol_id()
+    if config.symbols.view ~= "drilldown" then
+        return nil
+    end
+    if #state.path > 0 then
+        return nil
+    end
+    local bufnr = vim.api.nvim_get_current_buf()
+    if state.last_bufnr and state.last_bufnr ~= bufnr then
+        return nil
+    end
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    return find_top_level_symbol_at_cursor(state.items, {
+        cursor[1] - 1,
+        cursor[2],
+    })
+end
+
+local function get_current_highlight()
+    return config.highlights.current or "Visual"
+end
+
 local function get_kind_highlight(item)
     local custom = config.symbols.kind_highlights or {}
     return custom[item.kind] or symbol_kind_highlights[item.kind] or config.highlights.symbol
@@ -603,6 +657,8 @@ local function render_dashed()
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
     local dash = "──"
+    local marker = "▸"
+    local current_id = get_current_symbol_id()
 
     if #visible_items == 0 then
         contents[1] = padding_str .. dash .. padding_str
@@ -620,11 +676,12 @@ local function render_dashed()
         local entry = visible_items[i]
         local has_children = entry.item.children and #entry.item.children > 0
         local indicator = (entry.depth == 0 and has_children) and "──" or "─"
-        contents[i] = padding_str .. indicator .. padding_str
+        local mark = (current_id and entry.item.id == current_id) and marker or " "
+        contents[i] = padding_str .. mark .. indicator .. padding_str
     end
 
     local dash_width = vim.fn.strwidth(dash)
-    local total_width = dash_width + 2 * padding
+    local total_width = dash_width + 1 + 2 * padding
     local total_height = #visible_items
 
     if needs_pagination then
@@ -664,6 +721,8 @@ local function render_expanded(is_minimal_full)
     local visible_items, start_idx = get_page_items()
     local _, _, needs_pagination = get_pagination_info()
     local smart_labels = assign_smart_labels(visible_items, line_keys)
+    local current_id = get_current_symbol_id()
+    local current_hl = current_id and get_current_highlight() or nil
     local contents = {}
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
@@ -763,6 +822,23 @@ local function render_expanded(is_minimal_full)
                 display_name_start,
                 display_name_end
             )
+            if current_id and visible_items[i].item.id == current_id then
+                local item = visible_items[i].item
+                local item_indicator = "──"
+                local name_prefix = string.rep(indent_unit, visible_items[i].depth)
+                    .. item_indicator
+                    .. " "
+                local name_start = display_name_start + #name_prefix
+                local name_end = name_start + #item.name
+                vim.api.nvim_buf_add_highlight(
+                    bufh,
+                    ns_id,
+                    current_hl,
+                    i - 1,
+                    name_start,
+                    name_end
+                )
+            end
             vim.api.nvim_buf_add_highlight(
                 bufh,
                 ns_id,
@@ -1088,6 +1164,17 @@ function M.toggle_view()
         else
             render_dashed()
         end
+    end
+end
+
+function M.update_cursor_highlight()
+    if not win_id or not vim.api.nvim_win_is_valid(win_id) then
+        return
+    end
+    if is_expanded then
+        render_expanded()
+    else
+        render_dashed()
     end
 end
 
