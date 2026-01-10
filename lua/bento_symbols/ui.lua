@@ -160,28 +160,40 @@ local function range_contains(range, cursor)
     return true
 end
 
-local function find_top_level_symbol_at_cursor(items, cursor)
-    for _, item in ipairs(items) do
-        if range_contains(item.range, cursor) then
-            return item.id
-        end
+local function range_size(range)
+    if not range or not range.start or not range["end"] then
+        return math.huge
     end
-    return nil
+    local start_line = range.start.line or 0
+    local start_col = range.start.character or 0
+    local end_line = range["end"].line or 0
+    local end_col = range["end"].character or 0
+    return (end_line - start_line) * 100000 + (end_col - start_col)
 end
 
-local function get_current_symbol_id()
-    if config.symbols.view ~= "drilldown" then
-        return nil
+local function find_best_visible_symbol_id(visible_items, cursor)
+    local best_id = nil
+    local best_size = math.huge
+    for _, entry in ipairs(visible_items) do
+        local item = entry.item
+        if range_contains(item.range, cursor) then
+            local size = range_size(item.range)
+            if size < best_size then
+                best_size = size
+                best_id = item.id
+            end
+        end
     end
-    if #state.path > 0 then
-        return nil
-    end
+    return best_id
+end
+
+local function get_current_symbol_id_for_visible(visible_items)
     local bufnr = vim.api.nvim_get_current_buf()
     if state.last_bufnr and state.last_bufnr ~= bufnr then
         return nil
     end
     local cursor = vim.api.nvim_win_get_cursor(0)
-    return find_top_level_symbol_at_cursor(state.items, {
+    return find_best_visible_symbol_id(visible_items, {
         cursor[1] - 1,
         cursor[2],
     })
@@ -658,7 +670,7 @@ local function render_dashed()
     local padding_str = string.rep(" ", padding)
     local dash = "──"
     local marker = "▸"
-    local current_id = get_current_symbol_id()
+    local current_id = get_current_symbol_id_for_visible(visible_items)
 
     if #visible_items == 0 then
         contents[1] = padding_str .. dash .. padding_str
@@ -721,7 +733,7 @@ local function render_expanded(is_minimal_full)
     local visible_items, start_idx = get_page_items()
     local _, _, needs_pagination = get_pagination_info()
     local smart_labels = assign_smart_labels(visible_items, line_keys)
-    local current_id = get_current_symbol_id()
+    local current_id = get_current_symbol_id_for_visible(visible_items)
     local current_hl = current_id and get_current_highlight() or nil
     local contents = {}
     local padding = config.ui.floating.label_padding or 1
