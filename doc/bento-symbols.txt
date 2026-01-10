@@ -1,0 +1,66 @@
+*bento-symbols.nvim*
+
+bento-symbols.nvim provides a floating LSP document symbols menu inspired by
+bento.nvim.
+
+==============================================================================
+COMMANDS                                                     *bento-symbols-commands*
+
+:BentoSymbols                Open or refresh the symbols menu.
+:BentoSymbolsToggleView      Toggle between drilldown and flat views.
+
+==============================================================================
+SETUP                                                         *bento-symbols-setup*
+
+Example:
+
+  require("bento_symbols").setup({
+      main_keymap = "'",
+      symbols = {
+          show_kind = true,
+          indent = "  ",
+          view = "drilldown", -- "drilldown" | "flat"
+          kind_highlights = {},
+      },
+      ui = {
+          mode = "floating",
+          floating = {
+              position = "middle-right",
+              offset_x = 0,
+              offset_y = 0,
+              dash_char = "-",
+              label_padding = 1,
+              minimal_menu = "dashed",
+              max_rendered_items = nil,
+          },
+          keys = {
+              page_prev = "<C-h>",
+              page_next = "<C-l>",
+              collapse = "<ESC>",
+              toggle_view = nil,
+          },
+      },
+  })
+
+==============================================================================
+BEHAVIOR                                                     *bento-symbols-behavior*
+
+- Drilldown view shows one tree level at a time.
+- Flat view shows the full tree with indentation.
+- In drilldown mode, selecting a parent jumps to it and enters its children.
+- Selecting a leaf jumps and collapses to dashed lines.
+- In flat mode, selecting a symbol jumps and collapses to dashed lines.
+- Paging is available when the list exceeds available height.
+
+==============================================================================
+HIGHLIGHTS                                                   *bento-symbols-highlights*
+
+Symbols are highlighted by kind using @lsp.type.* groups (or fallback to
+highlights.symbol). You can override per kind via symbols.kind_highlights.
+
+==============================================================================
+NOTES                                                        *bento-symbols-notes*
+
+If your LSP server returns SymbolInformation instead of DocumentSymbol, the
+list is flat and drilldown behaves like flat mode.
+
