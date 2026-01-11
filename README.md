@@ -110,6 +110,7 @@ require("bento_symbols").setup({
             toggle_view = nil, -- map to :BentoSymbolsToggleView
             go_back = "<C-j>", -- drilldown back
             go_forward = "<C-k>", -- drilldown forward
+            lock_toggle = "*", -- toggle read-only mode
         },
     },
 })

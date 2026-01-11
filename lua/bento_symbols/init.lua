@@ -83,6 +83,7 @@ function M.setup(config)
                 toggle_view = nil,
                 go_back = "<C-j>",
                 go_forward = "<C-k>",
+                lock_toggle = "*",
             },
         },
         symbols = {

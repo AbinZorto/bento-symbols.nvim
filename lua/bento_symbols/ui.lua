@@ -22,6 +22,7 @@ local state = {
     by_id = {},
     back_stack = {},
     forward_stack = {},
+    locked = false,
 }
 
 local refresh_visible_items
@@ -796,28 +797,42 @@ end
 local function generate_pagination_indicator(width)
     local _, total_pages, needs_pagination = get_pagination_info()
     local indicator_mode = config.ui.floating.page_indicator or "auto"
-    if not needs_pagination then
-        return nil
-    end
-    local show = (indicator_mode == "always")
+    local show_pages = (indicator_mode == "always")
         or (indicator_mode == "auto" and needs_pagination)
-    if indicator_mode == "never" or not show then
+    if indicator_mode == "never" then
+        show_pages = false
+    end
+
+    local lock_label = state.locked and "LOCK" or nil
+    if not show_pages and not lock_label then
         return nil
     end
     local indicator_style = config.ui.floating.page_indicator_style or "dots"
     local indicator
-    if indicator_style == "counter" then
-        indicator = string.format("%d/%d", current_page, total_pages)
-    else
-        local dots = {}
-        for i = 1, total_pages do
-            if i == current_page then
-                table.insert(dots, "*")
-            else
-                table.insert(dots, ".")
+    if show_pages then
+        if indicator_style == "counter" then
+            indicator = string.format("%d/%d", current_page, total_pages)
+        else
+            local dots = {}
+            for i = 1, total_pages do
+                if i == current_page then
+                    table.insert(dots, "*")
+                else
+                    table.insert(dots, ".")
+                end
             end
+            indicator = table.concat(dots, " ")
         end
-        indicator = table.concat(dots, " ")
+    else
+        indicator = ""
+    end
+
+    if lock_label then
+        if indicator == "" then
+            indicator = lock_label
+        else
+            indicator = indicator .. " " .. lock_label
+        end
     end
     local indicator_width = vim.fn.strwidth(indicator)
     local padding = width - indicator_width
@@ -1057,6 +1072,7 @@ local function set_navigation_keybindings(bind_paging)
     local collapse = keys.collapse or "<ESC>"
     local go_back = keys.go_back or page_prev
     local go_forward = keys.go_forward or page_next
+    local lock_toggle = keys.lock_toggle or "*"
 
     if bind_paging then
         save_keymap("n", page_next)
@@ -1095,10 +1111,23 @@ local function set_navigation_keybindings(bind_paging)
         require("bento_symbols.ui").collapse_menu()
     end, { silent = true, desc = "Bento Symbols: Collapse menu" })
     table.insert(selection_mode_keymaps, collapse)
+
+    if is_expanded then
+        save_keymap("n", lock_toggle)
+        vim.keymap.set("n", lock_toggle, function()
+            require("bento_symbols.ui").toggle_lock()
+        end, { silent = true, desc = "Bento Symbols: Toggle lock" })
+        table.insert(selection_mode_keymaps, lock_toggle)
+    end
 end
 
 local function set_selection_keybindings(smart_labels, base_index)
     clear_selection_keymaps()
+
+    if state.locked then
+        set_navigation_keybindings(true)
+        return
+    end
 
     for i, label in pairs(smart_labels) do
         if label and label ~= " " then
@@ -1136,10 +1165,21 @@ render_dashed = function()
     if #visible_items == 0 then
         contents[1] = padding_str .. dash .. padding_str
         local total_width = vim.fn.strwidth(dash) + 2 * padding
+        local total_height = 1
+        local indicator = generate_pagination_indicator(total_width)
+        if indicator then
+            local indicator_width = vim.fn.strwidth(indicator)
+            if indicator_width > total_width then
+                total_width = indicator_width
+                indicator = generate_pagination_indicator(total_width)
+            end
+            table.insert(contents, indicator)
+            total_height = total_height + 1
+        end
         vim.api.nvim_buf_set_option(bufh, "modifiable", true)
         vim.api.nvim_buf_set_lines(bufh, 0, -1, false, contents)
         vim.api.nvim_buf_set_option(bufh, "modifiable", false)
-        update_window_size(total_width, 1)
+        update_window_size(total_width, total_height)
         clear_selection_keymaps()
         set_navigation_keybindings(false)
         return
@@ -1203,7 +1243,6 @@ render_expanded = function(is_minimal_full)
 
     setup_state()
     local visible_items, start_idx = get_page_items()
-    local _, _, needs_pagination = get_pagination_info()
     local smart_labels = assign_smart_labels(visible_items, line_keys)
     local current_id = get_current_symbol_id_for_visible(visible_items)
     local current_hl = current_id and get_current_highlight() or nil
@@ -1213,17 +1252,15 @@ render_expanded = function(is_minimal_full)
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
     local indent_unit = config.symbols.indent or "  "
+    local title_text = nil
     local title_line = nil
     local title_offset = 0
-
     if config.symbols.view == "drilldown" and #state.path > 0 then
         local names = {}
         for _, item in ipairs(state.path) do
             table.insert(names, item.name)
         end
-        local title = table.concat(names, ".")
-        title_line = padding_str .. title .. padding_str
-        title_offset = 1
+        title_text = table.concat(names, ".")
     end
 
     local max_content_width = 0
@@ -1233,10 +1270,21 @@ render_expanded = function(is_minimal_full)
         local line = padding_str .. message .. padding_str
         contents[1] = line
         local total_width = vim.fn.strwidth(line)
+        local total_height = 1
+        local indicator = generate_pagination_indicator(total_width)
+        if indicator then
+            local indicator_width = vim.fn.strwidth(indicator)
+            if indicator_width > total_width then
+                total_width = indicator_width
+                indicator = generate_pagination_indicator(total_width)
+            end
+            table.insert(contents, indicator)
+            total_height = total_height + 1
+        end
         vim.api.nvim_buf_set_option(bufh, "modifiable", true)
         vim.api.nvim_buf_set_lines(bufh, 0, -1, false, contents)
         vim.api.nvim_buf_set_option(bufh, "modifiable", false)
-        update_window_size(total_width, 1)
+        update_window_size(total_width, total_height)
         clear_selection_keymaps()
         set_navigation_keybindings(false)
         return
@@ -1271,6 +1319,17 @@ render_expanded = function(is_minimal_full)
         })
     end
 
+    if title_text then
+        local max_title_width = math.max(1, max_content_width)
+        if vim.fn.strwidth(title_text) > max_title_width then
+            local keep_width = math.max(1, max_title_width - 3)
+            local tail = string.sub(title_text, -keep_width)
+            title_text = "..." .. tail
+        end
+        title_line = padding_str .. title_text .. padding_str
+        title_offset = 1
+    end
+
     local total_width = padding + max_content_width
     local total_height = #visible_items + title_offset
 
@@ -1286,17 +1345,15 @@ render_expanded = function(is_minimal_full)
         contents[i] = line
     end
 
-    if needs_pagination then
-        local indicator = generate_pagination_indicator(total_width)
-        if indicator then
-            local indicator_width = vim.fn.strwidth(indicator)
-            if indicator_width > total_width then
-                total_width = indicator_width
-                indicator = generate_pagination_indicator(total_width)
-            end
-            table.insert(contents, indicator)
-            total_height = total_height + 1
+    local indicator = generate_pagination_indicator(total_width)
+    if indicator then
+        local indicator_width = vim.fn.strwidth(indicator)
+        if indicator_width > total_width then
+            total_width = indicator_width
+            indicator = generate_pagination_indicator(total_width)
         end
+        table.insert(contents, indicator)
+        total_height = total_height + 1
     end
 
     if title_line then
@@ -1365,7 +1422,7 @@ render_expanded = function(is_minimal_full)
         end
     end
 
-    if needs_pagination then
+    if indicator then
         vim.api.nvim_buf_add_highlight(
             bufh,
             ns_id,
@@ -1689,7 +1746,25 @@ function M.handle_main_keymap()
     open_menu(true)
 end
 
+function M.toggle_lock()
+    setup_state()
+    if not is_expanded then
+        return
+    end
+    state.locked = not state.locked
+    if win_id and vim.api.nvim_win_is_valid(win_id) then
+        if is_expanded then
+            render_expanded()
+        else
+            render_dashed()
+        end
+    end
+end
+
 function M.select_item(idx)
+    if state.locked then
+        return
+    end
     local entry = state.visible_items[idx]
     if not entry then
         return
