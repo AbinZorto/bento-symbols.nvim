@@ -19,7 +19,13 @@ local state = {
     pending = false,
     last_seen_id = nil,
     by_id = {},
+    back_stack = {},
+    forward_stack = {},
 }
+
+local refresh_visible_items
+local render_expanded
+local render_dashed
 
 local line_keys = {
     "a",
@@ -348,6 +354,61 @@ local function get_parent_ids(current_id)
     return parents
 end
 
+local function get_path_ids()
+    local ids = {}
+    for _, item in ipairs(state.path) do
+        table.insert(ids, item.id)
+    end
+    return ids
+end
+
+local function set_path_from_ids(ids)
+    local path = {}
+    for _, id in ipairs(ids or {}) do
+        local item = state.by_id[id]
+        if not item then
+            return false
+        end
+        table.insert(path, item)
+    end
+    state.path = path
+    return true
+end
+
+local function push_history()
+    table.insert(state.back_stack, {
+        path_ids = get_path_ids(),
+        page = current_page,
+    })
+    state.forward_stack = {}
+end
+
+local function navigate_history(direction)
+    if config.symbols.view ~= "drilldown" then
+        return
+    end
+    local from_stack = direction == "back" and state.back_stack
+        or state.forward_stack
+    local to_stack = direction == "back" and state.forward_stack
+        or state.back_stack
+    local entry = from_stack[#from_stack]
+    if not entry then
+        return
+    end
+    table.remove(from_stack)
+    table.insert(to_stack, { path_ids = get_path_ids(), page = current_page })
+    if not set_path_from_ids(entry.path_ids) then
+        return
+    end
+    current_page = entry.page or 1
+    refresh_visible_items()
+    if is_expanded then
+        render_expanded()
+    else
+        render_dashed()
+    end
+end
+
 
 local function get_current_highlight()
     return config.highlights.current or "Visual"
@@ -458,7 +519,7 @@ local function build_flat_items(items, depth, out)
     end
 end
 
-local function refresh_visible_items()
+refresh_visible_items = function()
     local visible = {}
     if config.symbols.view == "flat" then
         build_flat_items(state.items, 0, visible)
@@ -821,27 +882,36 @@ local function set_navigation_keybindings(bind_paging)
     local page_prev = keys.page_prev or "<C-h>"
     local page_next = keys.page_next or "<C-l>"
     local collapse = keys.collapse or "<ESC>"
-    local go_back = keys.go_back or "\""
+    local go_back = keys.go_back or page_prev
+    local go_forward = keys.go_forward or page_next
 
     if bind_paging then
-        save_keymap("n", page_next)
-        vim.keymap.set("n", page_next, function()
-            require("bento_symbols.ui").next_page()
-        end, { silent = true, desc = "Bento Symbols: Next page" })
-        table.insert(selection_mode_keymaps, page_next)
+        if config.symbols.view == "drilldown" then
+            save_keymap("n", go_forward)
+            vim.keymap.set("n", go_forward, function()
+                require("bento_symbols.ui").history_forward()
+            end, { silent = true, desc = "Bento Symbols: Forward" })
+            table.insert(selection_mode_keymaps, go_forward)
 
-        save_keymap("n", page_prev)
-        vim.keymap.set("n", page_prev, function()
-            require("bento_symbols.ui").prev_page()
-        end, { silent = true, desc = "Bento Symbols: Previous page" })
-        table.insert(selection_mode_keymaps, page_prev)
+            save_keymap("n", go_back)
+            vim.keymap.set("n", go_back, function()
+                require("bento_symbols.ui").history_back()
+            end, { silent = true, desc = "Bento Symbols: Back" })
+            table.insert(selection_mode_keymaps, go_back)
+        else
+            save_keymap("n", page_next)
+            vim.keymap.set("n", page_next, function()
+                require("bento_symbols.ui").next_page()
+            end, { silent = true, desc = "Bento Symbols: Next page" })
+            table.insert(selection_mode_keymaps, page_next)
+
+            save_keymap("n", page_prev)
+            vim.keymap.set("n", page_prev, function()
+                require("bento_symbols.ui").prev_page()
+            end, { silent = true, desc = "Bento Symbols: Previous page" })
+            table.insert(selection_mode_keymaps, page_prev)
+        end
     end
-
-    save_keymap("n", go_back)
-    vim.keymap.set("n", go_back, function()
-        require("bento_symbols.ui").go_back()
-    end, { silent = true, desc = "Bento Symbols: Go back" })
-    table.insert(selection_mode_keymaps, go_back)
 
     save_keymap("n", collapse)
     vim.keymap.set("n", collapse, function()
@@ -870,7 +940,7 @@ local function set_selection_keybindings(smart_labels, base_index)
     set_navigation_keybindings(true)
 end
 
-local function render_dashed()
+render_dashed = function()
     if not bufh or not vim.api.nvim_buf_is_valid(bufh) then
         return
     end
@@ -949,7 +1019,7 @@ local function render_dashed()
     end
 end
 
-local function render_expanded(is_minimal_full)
+render_expanded = function(is_minimal_full)
     if not bufh or not vim.api.nvim_buf_is_valid(bufh) then
         return
     end
@@ -1194,6 +1264,8 @@ local function apply_symbols(result, bufnr)
     state.path = {}
     state.last_seen_id = nil
     state.by_id = {}
+    state.back_stack = {}
+    state.forward_stack = {}
     index_items(items)
     refresh_visible_items()
 
@@ -1291,6 +1363,7 @@ local function enter_item(item)
     if config.symbols.view == "flat" then
         return false
     end
+    push_history()
     table.insert(state.path, item)
     refresh_visible_items()
     return true
@@ -1448,6 +1521,8 @@ function M.toggle_view()
     end
     state.path = {}
     state.last_seen_id = nil
+    state.back_stack = {}
+    state.forward_stack = {}
     refresh_symbols()
     refresh_visible_items()
     if win_id and vim.api.nvim_win_is_valid(win_id) then
@@ -1473,6 +1548,14 @@ end
 
 function M.go_back()
     go_back()
+end
+
+function M.history_back()
+    navigate_history("back")
+end
+
+function M.history_forward()
+    navigate_history("forward")
 end
 
 return M

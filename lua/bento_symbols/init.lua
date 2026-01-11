@@ -81,7 +81,8 @@ function M.setup(config)
                 page_next = "<C-l>",
                 collapse = "<ESC>",
                 toggle_view = nil,
-                go_back = "\"",
+                go_back = nil,
+                go_forward = nil,
             },
         },
         symbols = {

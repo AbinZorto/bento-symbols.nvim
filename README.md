@@ -104,7 +104,8 @@ require("bento_symbols").setup({
             page_next = "<C-l>",
             collapse = "<ESC>",
             toggle_view = nil, -- map to :BentoSymbolsToggleView
-            go_back = "\"",
+            go_back = nil, -- drilldown back (defaults to page_prev)
+            go_forward = nil, -- drilldown forward (defaults to page_next)
         },
     },
 })
