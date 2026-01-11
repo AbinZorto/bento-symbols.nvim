@@ -172,6 +172,21 @@ local function range_contains(range, cursor)
     return true
 end
 
+local function range_contains_range(outer, inner)
+    if not outer or not outer.start or not outer["end"] then
+        return false
+    end
+    if not inner or not inner.start or not inner["end"] then
+        return false
+    end
+    local outer_start = { outer.start.line or 0, outer.start.character or 0 }
+    local outer_end = { outer["end"].line or 0, outer["end"].character or 0 }
+    local inner_start = { inner.start.line or 0, inner.start.character or 0 }
+    local inner_end = { inner["end"].line or 0, inner["end"].character or 0 }
+    return range_contains({ start = outer_start, ["end"] = outer_end }, inner_start)
+        and range_contains({ start = outer_start, ["end"] = outer_end }, inner_end)
+end
+
 local function range_touches_line(range, line)
     if not range or not range.start or not range["end"] then
         return false
@@ -317,17 +332,32 @@ local function get_current_symbol_id_for_visible(visible_items)
             and state.last_seen_id
             and current ~= state.last_seen_id
         then
+            local keep = false
             local ancestor = state.by_id[state.last_seen_id]
             while ancestor and ancestor.parent_id do
                 if ancestor.parent_id == current then
-                    for _, entry in ipairs(visible_items) do
-                        if entry.item.id == state.last_seen_id then
-                            return state.last_seen_id
-                        end
-                    end
+                    keep = true
                     break
                 end
                 ancestor = state.by_id[ancestor.parent_id]
+            end
+            if not keep then
+                local current_item = state.by_id[current]
+                local last_item = state.by_id[state.last_seen_id]
+                if current_item and last_item then
+                    local current_range = get_item_match_range(current_item)
+                    local last_range = get_item_match_range(last_item)
+                    if range_contains_range(current_range, last_range) then
+                        keep = true
+                    end
+                end
+            end
+            if keep then
+                for _, entry in ipairs(visible_items) do
+                    if entry.item.id == state.last_seen_id then
+                        return state.last_seen_id
+                    end
+                end
             end
         end
         state.last_seen_id = current
