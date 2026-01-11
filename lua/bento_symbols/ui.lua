@@ -14,6 +14,7 @@ local saved_keymaps = {}
 local state = {
     items = {},
     visible_items = {},
+    flat_items = {},
     path = {},
     last_bufnr = nil,
     pending = false,
@@ -26,6 +27,7 @@ local state = {
 local refresh_visible_items
 local render_expanded
 local render_dashed
+local get_pagination_info
 
 local line_keys = {
     "a",
@@ -429,6 +431,50 @@ local function set_path_from_ids(ids)
     return true
 end
 
+local function path_ids_equal(a, b)
+    if #a ~= #b then
+        return false
+    end
+    for i = 1, #a do
+        if a[i] ~= b[i] then
+            return false
+        end
+    end
+    return true
+end
+
+local function set_context_and_page_for_symbol_id(symbol_id)
+    local item = symbol_id and state.by_id[symbol_id] or nil
+    if not item then
+        return false
+    end
+    local path_ids = {}
+    local current = item
+    while current and current.parent_id do
+        table.insert(path_ids, 1, current.parent_id)
+        current = state.by_id[current.parent_id]
+    end
+    local current_path_ids = get_path_ids()
+    if not path_ids_equal(path_ids, current_path_ids) then
+        if not set_path_from_ids(path_ids) then
+            return false
+        end
+        refresh_visible_items()
+    end
+    local max_per_page, _, needs_pagination = get_pagination_info()
+    if needs_pagination then
+        for idx, entry in ipairs(state.visible_items) do
+            if entry.item.id == symbol_id then
+                current_page = math.ceil(idx / max_per_page)
+                break
+            end
+        end
+    else
+        current_page = 1
+    end
+    return true
+end
+
 local function push_history()
     table.insert(state.back_stack, {
         path_ids = get_path_ids(),
@@ -607,7 +653,7 @@ local function index_items(items)
     end
 end
 
-local function get_pagination_info()
+get_pagination_info = function()
     local max_rendered = config.ui.floating.max_rendered_items
 
     local ui = vim.api.nvim_list_uis()[1]
@@ -666,6 +712,31 @@ local function ensure_current_symbol_page_flat()
             return
         end
     end
+end
+
+local function ensure_current_symbol_context_and_page_drilldown()
+    if config.symbols.view ~= "drilldown" then
+        return
+    end
+    if config.symbols.auto_page_drilldown == false then
+        return
+    end
+    local bufnr = vim.api.nvim_get_current_buf()
+    if state.last_bufnr and state.last_bufnr ~= bufnr then
+        return
+    end
+    if not state.flat_items or #state.flat_items == 0 then
+        return
+    end
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local closest_id = find_closest_by_start(state.flat_items, {
+        cursor[1] - 1,
+        cursor[2],
+    })
+    if not closest_id or not state.by_id[closest_id] then
+        return
+    end
+    set_context_and_page_for_symbol_id(closest_id)
 end
 
 local function ensure_current_symbol_page_drilldown_on_refresh()
@@ -1371,6 +1442,8 @@ local function apply_symbols(result, bufnr)
     state.back_stack = {}
     state.forward_stack = {}
     index_items(items)
+    state.flat_items = {}
+    build_flat_items(state.items, 0, state.flat_items)
     refresh_visible_items()
     if
         config.symbols.view == "drilldown"
@@ -1711,6 +1784,7 @@ function M.update_cursor_highlight()
         return
     end
     ensure_current_symbol_page_flat()
+    ensure_current_symbol_context_and_page_drilldown()
     if is_expanded then
         render_expanded()
     else

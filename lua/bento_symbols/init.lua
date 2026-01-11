@@ -93,6 +93,7 @@ function M.setup(config)
             sticky_highlight = false,
             fuzzy_seen = true,
             auto_page_flat = true,
+            auto_page_drilldown = true,
             auto_page_drilldown_on_refresh = true,
             auto_context_drilldown_on_refresh = true,
             parent_marker = "·",
