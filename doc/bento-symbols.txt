@@ -23,7 +23,6 @@ Example:
           kind_highlights = {},
           sticky_highlight = false,
           fuzzy_seen = true,
-          keep_last_seen_child = true,
           auto_page_flat = true,
           auto_page_drilldown = true,
           auto_page_drilldown_on_refresh = true,

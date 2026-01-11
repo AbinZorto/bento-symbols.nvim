@@ -98,7 +98,6 @@ function M.setup(config)
             auto_page_drilldown_on_refresh = true,
             auto_context_drilldown_on_refresh = true,
             parent_marker = "·",
-            keep_last_seen_child = true,
             flat_keep_expanded_on_select = false,
             flat_auto_lock_on_select = false,
             drilldown_keep_expanded_on_leaf_select = false,

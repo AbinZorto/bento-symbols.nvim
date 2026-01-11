@@ -411,11 +411,7 @@ local function get_current_symbol_id_for_visible(visible_items)
     }, fuzzy)
 
     if current then
-        if
-            state.last_seen_id
-            and current ~= state.last_seen_id
-            and (config.symbols.view == "flat" or config.symbols.keep_last_seen_child)
-        then
+        if state.last_seen_id and current ~= state.last_seen_id then
             local keep = false
             local ancestor = state.by_id[state.last_seen_id]
             while ancestor and ancestor.parent_id do
