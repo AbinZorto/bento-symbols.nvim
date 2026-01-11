@@ -46,6 +46,7 @@ Example:
               max_rendered_items = nil,
               page_indicator = "auto",
               page_indicator_style = "counter",
+              border = "none",
           },
           keys = {
               page_prev = "<C-h>",

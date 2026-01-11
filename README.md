@@ -106,6 +106,7 @@ require("bento_symbols").setup({
             max_rendered_items = nil, -- nil (no limit) or number for pagination
             page_indicator = "auto", -- "auto" | "always" | "never"
             page_indicator_style = "counter", -- "dots" | "counter"
+            border = "none", -- "none" | "single" | "double" | "rounded" | "solid" | "shadow"
         },
         keys = {
             page_prev = "<C-h>",

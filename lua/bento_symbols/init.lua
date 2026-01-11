@@ -75,6 +75,7 @@ function M.setup(config)
                 max_rendered_items = nil,
                 page_indicator = "auto", -- "auto" | "always" | "never"
                 page_indicator_style = "counter", -- "dots" | "counter"
+                border = "none",
             },
             keys = {
                 page_prev = "<C-h>",
