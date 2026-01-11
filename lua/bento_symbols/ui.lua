@@ -1302,6 +1302,7 @@ end
 
 local function apply_symbols(result, bufnr)
     local items = normalize_symbols(result, bufnr)
+    local previous_seen = state.last_seen_id
     state.items = items
     state.path = {}
     state.last_seen_id = nil
@@ -1311,6 +1312,35 @@ local function apply_symbols(result, bufnr)
     index_items(items)
     refresh_visible_items()
     ensure_current_symbol_page_drilldown_on_refresh()
+    if previous_seen and state.by_id[previous_seen] then
+        local path_ids = {}
+        local current = state.by_id[previous_seen]
+        while current and current.parent_id do
+            table.insert(path_ids, 1, current.parent_id)
+            current = state.by_id[current.parent_id]
+        end
+        if #path_ids > 0 then
+            set_path_from_ids(path_ids)
+            refresh_visible_items()
+        end
+        if config.symbols.view == "flat" or #path_ids > 0 then
+            for idx, entry in ipairs(state.visible_items) do
+                if entry.item.id == previous_seen then
+                    local max_per_page, _, needs_pagination = get_pagination_info()
+                    if needs_pagination then
+                        current_page = math.ceil(idx / max_per_page)
+                    else
+                        current_page = 1
+                    end
+                    state.last_seen_id = previous_seen
+                    break
+                end
+            end
+        end
+    end
+    if config.symbols.view == "flat" then
+        ensure_current_symbol_page_flat()
+    end
 
     if #state.visible_items == 0 then
         vim.notify(
@@ -1467,7 +1497,9 @@ function M.collapse_menu()
     end
 
     is_expanded = false
-    current_page = 1
+    if config.symbols.view ~= "flat" then
+        current_page = 1
+    end
     render_dashed()
 end
 
