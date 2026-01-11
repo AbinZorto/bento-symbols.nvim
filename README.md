@@ -93,6 +93,7 @@ require("bento_symbols").setup({
         flat_auto_lock_on_select = false, -- Auto-lock after select in flat view
         drilldown_keep_expanded_on_leaf_select = false, -- Keep expanded after leaf select
         drilldown_auto_lock_on_leaf_select = false, -- Auto-lock after leaf select
+        name_truncate_ratio = 0.25, -- Max name width as ratio of window width
     },
     ui = {
         mode = "floating",

@@ -29,6 +29,7 @@ local refresh_visible_items
 local render_expanded
 local render_dashed
 local get_pagination_info
+local truncate_name_right
 
 local line_keys = {
     "a",
@@ -1289,6 +1290,15 @@ render_expanded = function(is_minimal_full)
         set_navigation_keybindings(false)
         return
     end
+    local ratio = config.symbols.name_truncate_ratio or 0.25
+    if ratio and ratio < 0 then
+        ratio = 0
+    end
+    local max_name_width = math.floor((vim.api.nvim_win_get_width(0) or 0) * ratio)
+    if max_name_width < 1 then
+        max_name_width = nil
+    end
+
     for i, entry in ipairs(visible_items) do
         local item = entry.item
         local label = smart_labels[i] or " "
@@ -1299,11 +1309,14 @@ render_expanded = function(is_minimal_full)
         if config.symbols.show_kind and item.kind_name then
             kind_suffix = " [" .. item.kind_name .. "]"
         end
+        local display_name_raw = item.name
+        local display_name_trimmed =
+            truncate_name_right(display_name_raw, max_name_width)
         local spacer = indicator ~= "" and (indicator .. " ") or ""
         local display_name = indent
             .. parent_mark
             .. spacer
-            .. item.name
+            .. display_name_trimmed
             .. kind_suffix
         local content_width = vim.fn.strwidth(display_name)
             + 1
@@ -1316,6 +1329,7 @@ render_expanded = function(is_minimal_full)
             display_name = display_name,
             content_width = content_width,
             name_prefix_len = #indent + #parent_mark + #spacer,
+            name_len = #display_name_trimmed,
         })
     end
 
@@ -1401,7 +1415,7 @@ render_expanded = function(is_minimal_full)
                 local item = visible_items[i].item
                 local name_prefix_len = all_line_data[i].name_prefix_len
                 local name_start = display_name_start + name_prefix_len
-                local name_end = name_start + #item.name
+                local name_end = name_start + all_line_data[i].name_len
                 vim.api.nvim_buf_add_highlight(
                     bufh,
                     ns_id,
@@ -1457,6 +1471,18 @@ local function render_collapsed()
     elseif minimal_menu_active == "full" then
         render_expanded(true)
     end
+end
+
+truncate_name_right = function(name, max_width)
+    if not max_width or max_width < 1 then
+        return name
+    end
+    if vim.fn.strwidth(name) <= max_width then
+        return name
+    end
+    local keep_width = math.max(1, max_width - 3)
+    local trimmed = vim.fn.strcharpart(name, 0, keep_width)
+    return trimmed .. "..."
 end
 
 local function close_menu()
