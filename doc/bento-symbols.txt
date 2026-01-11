@@ -47,6 +47,8 @@ Example:
               page_indicator = "auto",
               page_indicator_style = "counter",
               border = "none",
+              top_margin = 0,
+              bottom_margin = 0,
           },
           keys = {
               page_prev = "<C-h>",

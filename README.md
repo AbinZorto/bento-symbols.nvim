@@ -107,6 +107,8 @@ require("bento_symbols").setup({
             page_indicator = "auto", -- "auto" | "always" | "never"
             page_indicator_style = "counter", -- "dots" | "counter"
             border = "none", -- "none" | "single" | "double" | "rounded" | "solid" | "shadow"
+            top_margin = 0,
+            bottom_margin = 0,
         },
         keys = {
             page_prev = "<C-h>",

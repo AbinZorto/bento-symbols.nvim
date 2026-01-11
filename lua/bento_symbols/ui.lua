@@ -713,7 +713,9 @@ get_pagination_info = function()
 
     local ui = vim.api.nvim_list_uis()[1]
     local screen_height = ui and ui.height or 24
-    local available_height = screen_height - 3
+    local top_margin = config.ui.floating.top_margin or 0
+    local bottom_margin = config.ui.floating.bottom_margin or 0
+    local available_height = screen_height - 3 - top_margin - bottom_margin
 
     local effective_max
     if max_rendered and max_rendered > 0 then
@@ -991,15 +993,18 @@ local function calculate_position(height, width)
     local position = floating.position or "middle-right"
     local offset_x = floating.offset_x or 0
     local offset_y = floating.offset_y or 0
+    local top_margin = floating.top_margin or 0
+    local bottom_margin = floating.bottom_margin or 0
 
     local row, col
 
     if position:match("^top") then
-        row = 0
+        row = top_margin
     elseif position:match("^bottom") then
-        row = ui.height - height
+        row = ui.height - height - bottom_margin
     else
-        row = math.floor((ui.height - height) / 2)
+        row = math.floor((ui.height - height - top_margin - bottom_margin) / 2)
+            + top_margin
     end
 
     if position:match("left$") then
