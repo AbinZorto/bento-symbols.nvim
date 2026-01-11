@@ -109,6 +109,15 @@ require("bento_symbols").setup({
             top_margin = 0,
             bottom_margin = 0,
         },
+        auto_refresh = {
+            events = {
+                "BufWritePost",
+                "InsertLeave",
+                "ModeChanged",
+                "TextChanged",
+            },
+            debounce_ms = 200,
+        },
         keys = {
             page_prev = "<C-h>",
             page_next = "<C-l>",

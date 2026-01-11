@@ -33,6 +33,7 @@ local function setup_command_and_keymap()
 end
 
 local function setup_autocmds()
+    local config = M.get_config()
     local augroup =
         vim.api.nvim_create_augroup("BentoSymbolsRefresh", { clear = true })
 
@@ -51,6 +52,56 @@ local function setup_autocmds()
         end,
         desc = "Update current symbol highlight",
     })
+
+    local auto_refresh = config.ui and config.ui.auto_refresh or nil
+    if auto_refresh ~= false then
+        local events = {
+            "BufWritePost",
+            "InsertLeave",
+            "ModeChanged",
+            "TextChanged",
+        }
+        local debounce_ms = 200
+        if type(auto_refresh) == "table" then
+            if auto_refresh.events and #auto_refresh.events > 0 then
+                events = auto_refresh.events
+            end
+            if auto_refresh.debounce_ms then
+                debounce_ms = auto_refresh.debounce_ms
+            end
+        end
+        local refresh_seq = 0
+        local function should_refresh_mode_change()
+            local evt = vim.v.event or {}
+            if not evt.old_mode or not evt.new_mode then
+                return true
+            end
+            local was_visual = evt.old_mode:match("[vV\22sS\19]") ~= nil
+            local is_visual = evt.new_mode:match("[vV\22sS\19]") ~= nil
+            return was_visual and not is_visual
+        end
+
+        local function schedule_refresh()
+            if vim.v.event and vim.v.event.old_mode then
+                if not should_refresh_mode_change() then
+                    return
+                end
+            end
+            refresh_seq = refresh_seq + 1
+            local seq = refresh_seq
+            vim.defer_fn(function()
+                if seq ~= refresh_seq then
+                    return
+                end
+                require("bento_symbols.ui").refresh_symbols()
+            end, debounce_ms)
+        end
+        vim.api.nvim_create_autocmd(events, {
+            group = augroup,
+            callback = schedule_refresh,
+            desc = "Debounced refresh bento symbols",
+        })
+    end
 end
 
 function M.get_config()
@@ -78,6 +129,15 @@ function M.setup(config)
                 border = "none",
                 top_margin = 0,
                 bottom_margin = 0,
+            },
+            auto_refresh = {
+                events = {
+                    "BufWritePost",
+                    "InsertLeave",
+                    "ModeChanged",
+                    "TextChanged",
+                },
+                debounce_ms = 200,
             },
             keys = {
                 page_prev = "<C-h>",

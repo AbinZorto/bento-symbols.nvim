@@ -1744,6 +1744,10 @@ function M.refresh_menu()
     refresh_symbols()
 end
 
+function M.refresh_symbols()
+    refresh_symbols()
+end
+
 function M.expand_menu()
     if not win_id or not vim.api.nvim_win_is_valid(win_id) then
         return
