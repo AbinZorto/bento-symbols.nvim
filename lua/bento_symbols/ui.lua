@@ -821,6 +821,7 @@ local function set_navigation_keybindings(bind_paging)
     local page_prev = keys.page_prev or "<C-h>"
     local page_next = keys.page_next or "<C-l>"
     local collapse = keys.collapse or "<ESC>"
+    local go_back = keys.go_back or "\""
 
     if bind_paging then
         save_keymap("n", page_next)
@@ -836,9 +837,15 @@ local function set_navigation_keybindings(bind_paging)
         table.insert(selection_mode_keymaps, page_prev)
     end
 
+    save_keymap("n", go_back)
+    vim.keymap.set("n", go_back, function()
+        require("bento_symbols.ui").go_back()
+    end, { silent = true, desc = "Bento Symbols: Go back" })
+    table.insert(selection_mode_keymaps, go_back)
+
     save_keymap("n", collapse)
     vim.keymap.set("n", collapse, function()
-        require("bento_symbols.ui").go_back()
+        require("bento_symbols.ui").collapse_menu()
     end, { silent = true, desc = "Bento Symbols: Collapse menu" })
     table.insert(selection_mode_keymaps, collapse)
 end
@@ -959,6 +966,21 @@ local function render_expanded(is_minimal_full)
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
     local indent_unit = config.symbols.indent or "  "
+    local title_line = nil
+    local title_offset = 0
+
+    if config.symbols.view == "drilldown" and #state.path > 0 then
+        local title
+        if #state.path >= 2 then
+            title = state.path[#state.path - 1].name
+                .. "."
+                .. state.path[#state.path].name
+        else
+            title = state.path[#state.path].name
+        end
+        title_line = padding_str .. title .. padding_str
+        title_offset = 1
+    end
 
     local max_content_width = 0
     local all_line_data = {}
@@ -1006,7 +1028,7 @@ local function render_expanded(is_minimal_full)
     end
 
     local total_width = padding + max_content_width
-    local total_height = #visible_items
+    local total_height = #visible_items + title_offset
 
     for i, data in ipairs(all_line_data) do
         local left_space = max_content_width - data.content_width
@@ -1033,6 +1055,14 @@ local function render_expanded(is_minimal_full)
         end
     end
 
+    if title_line then
+        local title_width = vim.fn.strwidth(title_line)
+        if title_width > total_width then
+            total_width = title_width
+        end
+        table.insert(contents, 1, title_line)
+    end
+
     vim.api.nvim_buf_set_option(bufh, "modifiable", true)
     vim.api.nvim_buf_set_lines(bufh, 0, -1, false, contents)
     vim.api.nvim_buf_set_option(bufh, "modifiable", false)
@@ -1057,11 +1087,12 @@ local function render_expanded(is_minimal_full)
                 label_hl = config.highlights.label_minimal
             end
 
+            local row = (i - 1) + title_offset
             vim.api.nvim_buf_add_highlight(
                 bufh,
                 ns_id,
                 get_kind_highlight(visible_items[i].item),
-                i - 1,
+                row,
                 display_name_start,
                 display_name_end
             )
@@ -1074,7 +1105,7 @@ local function render_expanded(is_minimal_full)
                     bufh,
                     ns_id,
                     current_hl,
-                    i - 1,
+                    row,
                     name_start,
                     name_end
                 )
@@ -1083,7 +1114,7 @@ local function render_expanded(is_minimal_full)
                 bufh,
                 ns_id,
                 label_hl,
-                i - 1,
+                row,
                 label_start - padding,
                 label_end
             )
@@ -1095,7 +1126,18 @@ local function render_expanded(is_minimal_full)
             bufh,
             ns_id,
             config.highlights.page_indicator,
-            #visible_items,
+            #visible_items + title_offset,
+            0,
+            -1
+        )
+    end
+
+    if title_line then
+        vim.api.nvim_buf_add_highlight(
+            bufh,
+            ns_id,
+            config.highlights.context,
+            0,
             0,
             -1
         )
@@ -1298,7 +1340,6 @@ function M.expand_menu()
         return
     end
     is_expanded = true
-    refresh_symbols()
     render_expanded()
 end
 

@@ -81,6 +81,7 @@ function M.setup(config)
                 page_next = "<C-l>",
                 collapse = "<ESC>",
                 toggle_view = nil,
+                go_back = "\"",
             },
         },
         symbols = {
@@ -100,6 +101,7 @@ function M.setup(config)
             window_bg = "BentoSymbolsNormal",
             page_indicator = "Comment",
             current = "Visual",
+            context = "Comment",
         },
         actions = {
             jump = {

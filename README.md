@@ -104,6 +104,7 @@ require("bento_symbols").setup({
             page_next = "<C-l>",
             collapse = "<ESC>",
             toggle_view = nil, -- map to :BentoSymbolsToggleView
+            go_back = "\"",
         },
     },
 })
@@ -116,6 +117,7 @@ require("bento_symbols").setup({
     highlights = {
         symbol = "Normal",
         current = "Visual",
+        context = "Comment",
     },
 })
 ```

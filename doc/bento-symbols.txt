@@ -44,6 +44,7 @@ Example:
               page_next = "<C-l>",
               collapse = "<ESC>",
               toggle_view = nil,
+              go_back = "\"",
           },
       },
   })
@@ -63,7 +64,8 @@ HIGHLIGHTS                                                   *bento-symbols-high
 
 Symbols are highlighted by kind using @lsp.type.* groups (or fallback to
 highlights.symbol). You can override per kind via symbols.kind_highlights.
-Use highlights.current for the current symbol highlight.
+Use highlights.current for the current symbol highlight and highlights.context
+for the drilldown context title.
 
 ==============================================================================
 NOTES                                                        *bento-symbols-notes*
