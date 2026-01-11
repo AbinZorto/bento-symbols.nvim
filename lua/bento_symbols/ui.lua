@@ -1218,7 +1218,7 @@ render_dashed = function()
     local dash = "──"
     local marker = "▸"
     local parent_marker = config.symbols.parent_marker or "·"
-    local current_id = get_current_symbol_id_for_visible(visible_items)
+    local current_id = get_current_symbol_id_for_visible(state.visible_items)
     local parent_ids = current_id and get_parent_ids(current_id) or {}
 
     if #visible_items == 0 then
@@ -1303,7 +1303,7 @@ render_expanded = function(is_minimal_full)
     setup_state()
     local visible_items, start_idx = get_page_items()
     local smart_labels = assign_smart_labels(visible_items, line_keys)
-    local current_id = get_current_symbol_id_for_visible(visible_items)
+    local current_id = get_current_symbol_id_for_visible(state.visible_items)
     local current_hl = current_id and get_current_highlight() or nil
     local parent_ids = current_id and get_parent_ids(current_id) or {}
     local parent_marker = config.symbols.parent_marker or "·"
