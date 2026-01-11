@@ -1785,11 +1785,25 @@ function M.select_item(idx)
     end
     jump_to_item(item)
     if config.symbols.view == "flat" then
-        M.collapse_menu()
+        if config.symbols.flat_auto_lock_on_select then
+            state.locked = true
+        end
+        if not config.symbols.flat_keep_expanded_on_select then
+            M.collapse_menu()
+        else
+            render_expanded()
+        end
         return
     end
     if not item.children or #item.children == 0 then
-        M.collapse_menu()
+        if config.symbols.drilldown_auto_lock_on_leaf_select then
+            state.locked = true
+        end
+        if not config.symbols.drilldown_keep_expanded_on_leaf_select then
+            M.collapse_menu()
+        else
+            render_expanded()
+        end
     end
 end
 

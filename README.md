@@ -89,6 +89,10 @@ require("bento_symbols").setup({
         auto_page_drilldown_on_refresh = true, -- Auto-switch page on refresh in drilldown
         auto_context_drilldown_on_refresh = true, -- Auto-switch context on refresh in drilldown
         parent_marker = "·", -- Marker shown for parent symbols
+        flat_keep_expanded_on_select = false, -- Keep expanded after select in flat view
+        flat_auto_lock_on_select = false, -- Auto-lock after select in flat view
+        drilldown_keep_expanded_on_leaf_select = false, -- Keep expanded after leaf select
+        drilldown_auto_lock_on_leaf_select = false, -- Auto-lock after leaf select
     },
     ui = {
         mode = "floating",
