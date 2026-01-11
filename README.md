@@ -85,6 +85,7 @@ require("bento_symbols").setup({
         fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
         auto_page_flat = true, -- Auto-switch page to show current symbol in flat view
         auto_page_drilldown_on_refresh = true, -- Auto-switch page on refresh in drilldown
+        auto_context_drilldown_on_refresh = true, -- Auto-switch context on refresh in drilldown
         parent_marker = "·", -- Marker shown for parent symbols
     },
     ui = {

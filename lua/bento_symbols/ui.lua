@@ -260,6 +260,29 @@ local function range_size(range)
     return (end_line - start_line) * 100000 + (end_col - start_col)
 end
 
+local function get_item_start_pos(item)
+    local range = item.selection_range or item.range
+    if range and range.start then
+        return range.start.line or 0, range.start.character or 0
+    end
+    return 0, 0
+end
+
+local function find_closest_by_start(items, cursor)
+    local best_id = nil
+    local best_dist = math.huge
+    for _, entry in ipairs(items) do
+        local item = entry.item or entry
+        local line, col = get_item_start_pos(item)
+        local dist = math.abs(cursor[1] - line) * 100000
+            + math.abs(cursor[2] - col)
+        if dist < best_dist then
+            best_dist = dist
+            best_id = item.id
+        end
+    end
+    return best_id
+end
 
 local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
     local best_id = nil
@@ -424,6 +447,17 @@ local function navigate_history(direction)
         or state.back_stack
     local entry = from_stack[#from_stack]
     if not entry then
+        if direction == "back" and #state.path > 0 then
+            table.insert(to_stack, { path_ids = get_path_ids(), page = current_page })
+            table.remove(state.path)
+            current_page = 1
+            refresh_visible_items()
+            if is_expanded then
+                render_expanded()
+            else
+                render_dashed()
+            end
+        end
         return
     end
     table.remove(from_stack)
@@ -1341,6 +1375,42 @@ local function apply_symbols(result, bufnr)
     state.forward_stack = {}
     index_items(items)
     refresh_visible_items()
+    if
+        config.symbols.view == "drilldown"
+        and config.symbols.auto_context_drilldown_on_refresh ~= false
+    then
+        local cursor = vim.api.nvim_win_get_cursor(0)
+        local all_items = {}
+        build_flat_items(state.items, 0, all_items)
+        local closest_id = find_closest_by_start(all_items, {
+            cursor[1] - 1,
+            cursor[2],
+        })
+        if closest_id and state.by_id[closest_id] then
+            local path_ids = {}
+            local current = state.by_id[closest_id]
+            while current and current.parent_id do
+                table.insert(path_ids, 1, current.parent_id)
+                current = state.by_id[current.parent_id]
+            end
+            if #path_ids > 0 then
+                set_path_from_ids(path_ids)
+                refresh_visible_items()
+            end
+            for idx, entry in ipairs(state.visible_items) do
+                if entry.item.id == closest_id then
+                    local max_per_page, _, needs_pagination =
+                        get_pagination_info()
+                    if needs_pagination then
+                        current_page = math.ceil(idx / max_per_page)
+                    else
+                        current_page = 1
+                    end
+                    break
+                end
+            end
+        end
+    end
     ensure_current_symbol_page_drilldown_on_refresh()
     if previous_seen and state.by_id[previous_seen] then
         local path_ids = {}
