@@ -351,9 +351,9 @@ local function get_current_symbol_id_for_visible(visible_items)
 
     if current then
         if
-            config.symbols.view == "flat"
-            and state.last_seen_id
+            state.last_seen_id
             and current ~= state.last_seen_id
+            and (config.symbols.view == "flat" or config.symbols.keep_last_seen_child)
         then
             local keep = false
             local ancestor = state.by_id[state.last_seen_id]
@@ -1146,14 +1146,11 @@ render_expanded = function(is_minimal_full)
     local title_offset = 0
 
     if config.symbols.view == "drilldown" and #state.path > 0 then
-        local title
-        if #state.path >= 2 then
-            title = state.path[#state.path - 1].name
-                .. "."
-                .. state.path[#state.path].name
-        else
-            title = state.path[#state.path].name
+        local names = {}
+        for _, item in ipairs(state.path) do
+            table.insert(names, item.name)
         end
+        local title = table.concat(names, ".")
         title_line = padding_str .. title .. padding_str
         title_offset = 1
     end

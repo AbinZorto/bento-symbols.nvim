@@ -83,6 +83,7 @@ require("bento_symbols").setup({
         kind_highlights = {}, -- Override kind highlight groups by symbol kind id
         sticky_highlight = false, -- Keep last seen symbol highlighted
         fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
+        keep_last_seen_child = false, -- Keep last child when ancestor becomes current
         auto_page_flat = true, -- Auto-switch page to show current symbol in flat view
         auto_page_drilldown_on_refresh = true, -- Auto-switch page on refresh in drilldown
         auto_context_drilldown_on_refresh = true, -- Auto-switch context on refresh in drilldown

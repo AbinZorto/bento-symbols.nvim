@@ -96,6 +96,7 @@ function M.setup(config)
             auto_page_drilldown_on_refresh = true,
             auto_context_drilldown_on_refresh = true,
             parent_marker = "·",
+            keep_last_seen_child = true,
         },
         highlights = {
             symbol = "Normal",
