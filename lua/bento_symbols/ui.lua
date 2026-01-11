@@ -289,28 +289,85 @@ local function find_closest_by_start(items, cursor)
 end
 
 local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
+    if fuzzy then
+        local same_line_before_id = nil
+        local same_line_before_col = -1
+        local same_line_before_depth = -1
+        local same_line_after_id = nil
+        local same_line_after_col = math.huge
+        local same_line_after_depth = -1
+        local before_id = nil
+        local before_line = -1
+        local before_col = -1
+        local before_depth = -1
+        local after_id = nil
+        local after_line = math.huge
+        local after_col = math.huge
+        local after_depth = -1
+        for _, entry in ipairs(visible_items) do
+            local item = entry.item
+            local line, col = get_item_start_pos(item)
+            local depth = entry.depth or 0
+            if line == cursor[1] then
+                if col <= cursor[2] then
+                    if col > same_line_before_col
+                        or (col == same_line_before_col and depth > same_line_before_depth)
+                    then
+                        same_line_before_col = col
+                        same_line_before_depth = depth
+                        same_line_before_id = item.id
+                    end
+                else
+                    if col < same_line_after_col
+                        or (col == same_line_after_col and depth > same_line_after_depth)
+                    then
+                        same_line_after_col = col
+                        same_line_after_depth = depth
+                        same_line_after_id = item.id
+                    end
+                end
+            end
+            local is_before = line < cursor[1]
+                or (line == cursor[1] and col <= cursor[2])
+            if is_before then
+                if line > before_line
+                    or (line == before_line and col > before_col)
+                    or (line == before_line and col == before_col and depth > before_depth)
+                then
+                    before_line = line
+                    before_col = col
+                    before_depth = depth
+                    before_id = item.id
+                end
+            else
+                if line < after_line
+                    or (line == after_line and col < after_col)
+                    or (line == after_line and col == after_col and depth > after_depth)
+                then
+                    after_line = line
+                    after_col = col
+                    after_depth = depth
+                    after_id = item.id
+                end
+            end
+        end
+        return same_line_before_id
+            or same_line_after_id
+            or before_id
+            or after_id
+    end
+
     local best_id = nil
     local best_size = math.huge
-    local best_dist = math.huge
     local best_depth = -1
     for _, entry in ipairs(visible_items) do
         local item = entry.item
         local range = get_item_match_range(item)
-        local matches = false
-        if fuzzy then
-            matches = range and range_touches_line(range, cursor[1]) or false
-        else
-            matches = range and range_contains(range, cursor) or false
-        end
+        local matches = range and range_contains(range, cursor) or false
         if matches then
             local size = range_size(range)
-            local dist = fuzzy and distance_for_item(item, cursor) or 0
             local depth = entry.depth or 0
-            if dist < best_dist
-                or (dist == best_dist and size < best_size)
-                or (dist == best_dist and size == best_size and depth > best_depth)
-            then
-                best_dist = dist
+            if size < best_size or (size == best_size and depth > best_depth) then
                 best_size = size
                 best_depth = depth
                 best_id = item.id
