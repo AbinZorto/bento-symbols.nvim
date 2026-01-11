@@ -857,7 +857,7 @@ local function generate_pagination_indicator(width)
         show_pages = false
     end
 
-    local lock_label = state.locked and "LOCK" or nil
+    local lock_label = state.locked and "🔒" or nil
     if not show_pages and not lock_label then
         return nil
     end
