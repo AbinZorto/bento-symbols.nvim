@@ -81,8 +81,8 @@ function M.setup(config)
                 page_next = "<C-l>",
                 collapse = "<ESC>",
                 toggle_view = nil,
-                go_back = nil,
-                go_forward = nil,
+                go_back = "<C-j>",
+                go_forward = "<C-k>",
             },
         },
         symbols = {
@@ -93,6 +93,7 @@ function M.setup(config)
             sticky_highlight = false,
             fuzzy_seen = true,
             auto_page_flat = true,
+            auto_page_drilldown_on_refresh = true,
             parent_marker = "·",
         },
         highlights = {

@@ -84,6 +84,7 @@ require("bento_symbols").setup({
         sticky_highlight = false, -- Keep last seen symbol highlighted
         fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
         auto_page_flat = true, -- Auto-switch page to show current symbol in flat view
+        auto_page_drilldown_on_refresh = true, -- Auto-switch page on refresh in drilldown
         parent_marker = "·", -- Marker shown for parent symbols
     },
     ui = {
@@ -104,8 +105,8 @@ require("bento_symbols").setup({
             page_next = "<C-l>",
             collapse = "<ESC>",
             toggle_view = nil, -- map to :BentoSymbolsToggleView
-            go_back = nil, -- drilldown back (defaults to page_prev)
-            go_forward = nil, -- drilldown forward (defaults to page_next)
+            go_back = "<C-j>", -- drilldown back
+            go_forward = "<C-k>", -- drilldown forward
         },
     },
 })

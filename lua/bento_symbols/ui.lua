@@ -245,6 +245,7 @@ local function range_size(range)
     return (end_line - start_line) * 100000 + (end_col - start_col)
 end
 
+
 local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
     local best_id = nil
     local best_size = math.huge
@@ -603,6 +604,41 @@ local function ensure_current_symbol_page_flat()
     end
 end
 
+local function ensure_current_symbol_page_drilldown_on_refresh()
+    if config.symbols.view ~= "drilldown" then
+        return
+    end
+    if config.symbols.auto_page_drilldown_on_refresh == false then
+        return
+    end
+    local max_per_page, _, needs_pagination = get_pagination_info()
+    if not needs_pagination then
+        return
+    end
+    local bufnr = vim.api.nvim_get_current_buf()
+    if state.last_bufnr and state.last_bufnr ~= bufnr then
+        return
+    end
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local fuzzy = config.symbols.fuzzy_seen ~= false
+    local current_id = find_best_visible_symbol_id(state.visible_items, {
+        cursor[1] - 1,
+        cursor[2],
+    }, fuzzy)
+    if not current_id then
+        return
+    end
+    for idx, entry in ipairs(state.visible_items) do
+        if entry.item.id == current_id then
+            local target_page = math.ceil(idx / max_per_page)
+            if current_page ~= target_page then
+                current_page = target_page
+            end
+            return
+        end
+    end
+end
+
 local function get_page_items()
     local max_per_page, total_pages, needs_pagination = get_pagination_info()
     if not needs_pagination then
@@ -625,9 +661,11 @@ end
 local function generate_pagination_indicator(width)
     local _, total_pages, needs_pagination = get_pagination_info()
     local indicator_mode = config.ui.floating.page_indicator or "auto"
-    local show =
-        (indicator_mode == "always" and config.symbols.view == "flat")
-        or (indicator_mode == "auto" and needs_pagination and config.symbols.view == "flat")
+    if not needs_pagination then
+        return nil
+    end
+    local show = (indicator_mode == "always")
+        or (indicator_mode == "auto" and needs_pagination)
     if indicator_mode == "never" or not show then
         return nil
     end
@@ -886,30 +924,34 @@ local function set_navigation_keybindings(bind_paging)
     local go_forward = keys.go_forward or page_next
 
     if bind_paging then
+        save_keymap("n", page_next)
+        vim.keymap.set("n", page_next, function()
+            require("bento_symbols.ui").next_page()
+        end, { silent = true, desc = "Bento Symbols: Next page" })
+        table.insert(selection_mode_keymaps, page_next)
+
+        save_keymap("n", page_prev)
+        vim.keymap.set("n", page_prev, function()
+            require("bento_symbols.ui").prev_page()
+        end, { silent = true, desc = "Bento Symbols: Previous page" })
+        table.insert(selection_mode_keymaps, page_prev)
+
         if config.symbols.view == "drilldown" then
-            save_keymap("n", go_forward)
-            vim.keymap.set("n", go_forward, function()
-                require("bento_symbols.ui").history_forward()
-            end, { silent = true, desc = "Bento Symbols: Forward" })
-            table.insert(selection_mode_keymaps, go_forward)
+            if go_forward ~= page_next then
+                save_keymap("n", go_forward)
+                vim.keymap.set("n", go_forward, function()
+                    require("bento_symbols.ui").history_forward()
+                end, { silent = true, desc = "Bento Symbols: Forward" })
+                table.insert(selection_mode_keymaps, go_forward)
+            end
 
-            save_keymap("n", go_back)
-            vim.keymap.set("n", go_back, function()
-                require("bento_symbols.ui").history_back()
-            end, { silent = true, desc = "Bento Symbols: Back" })
-            table.insert(selection_mode_keymaps, go_back)
-        else
-            save_keymap("n", page_next)
-            vim.keymap.set("n", page_next, function()
-                require("bento_symbols.ui").next_page()
-            end, { silent = true, desc = "Bento Symbols: Next page" })
-            table.insert(selection_mode_keymaps, page_next)
-
-            save_keymap("n", page_prev)
-            vim.keymap.set("n", page_prev, function()
-                require("bento_symbols.ui").prev_page()
-            end, { silent = true, desc = "Bento Symbols: Previous page" })
-            table.insert(selection_mode_keymaps, page_prev)
+            if go_back ~= page_prev then
+                save_keymap("n", go_back)
+                vim.keymap.set("n", go_back, function()
+                    require("bento_symbols.ui").history_back()
+                end, { silent = true, desc = "Bento Symbols: Back" })
+                table.insert(selection_mode_keymaps, go_back)
+            end
         end
     end
 
@@ -1268,6 +1310,7 @@ local function apply_symbols(result, bufnr)
     state.forward_stack = {}
     index_items(items)
     refresh_visible_items()
+    ensure_current_symbol_page_drilldown_on_refresh()
 
     if #state.visible_items == 0 then
         vim.notify(
