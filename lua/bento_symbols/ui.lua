@@ -290,12 +290,9 @@ end
 
 local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
     if fuzzy then
-        local same_line_before_id = nil
-        local same_line_before_col = -1
-        local same_line_before_depth = -1
-        local same_line_after_id = nil
-        local same_line_after_col = math.huge
-        local same_line_after_depth = -1
+        local same_line_id = nil
+        local same_line_dist = math.huge
+        local same_line_depth = -1
         local before_id = nil
         local before_line = -1
         local before_col = -1
@@ -309,22 +306,13 @@ local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
             local line, col = get_item_start_pos(item)
             local depth = entry.depth or 0
             if line == cursor[1] then
-                if col <= cursor[2] then
-                    if col > same_line_before_col
-                        or (col == same_line_before_col and depth > same_line_before_depth)
-                    then
-                        same_line_before_col = col
-                        same_line_before_depth = depth
-                        same_line_before_id = item.id
-                    end
-                else
-                    if col < same_line_after_col
-                        or (col == same_line_after_col and depth > same_line_after_depth)
-                    then
-                        same_line_after_col = col
-                        same_line_after_depth = depth
-                        same_line_after_id = item.id
-                    end
+                local dist = math.abs(cursor[2] - col)
+                if dist < same_line_dist
+                    or (dist == same_line_dist and depth > same_line_depth)
+                then
+                    same_line_dist = dist
+                    same_line_depth = depth
+                    same_line_id = item.id
                 end
             end
             local is_before = line < cursor[1]
@@ -351,10 +339,7 @@ local function find_best_visible_symbol_id(visible_items, cursor, fuzzy)
                 end
             end
         end
-        return same_line_before_id
-            or same_line_after_id
-            or before_id
-            or after_id
+        return same_line_id or before_id or after_id
     end
 
     local best_id = nil
@@ -411,45 +396,12 @@ local function get_current_symbol_id_for_visible(visible_items)
     }, fuzzy)
 
     if current then
-        if state.last_seen_id and current ~= state.last_seen_id then
-            local keep = false
-            local ancestor = state.by_id[state.last_seen_id]
-            while ancestor and ancestor.parent_id do
-                if ancestor.parent_id == current then
-                    keep = true
-                    break
-                end
-                ancestor = state.by_id[ancestor.parent_id]
-            end
-            if not keep then
-                local current_item = state.by_id[current]
-                local last_item = state.by_id[state.last_seen_id]
-                if current_item and last_item then
-                    local current_range = get_item_match_range(current_item)
-                    local last_range = get_item_match_range(last_item)
-                    if range_contains_range(current_range, last_range) then
-                        keep = true
-                    end
-                end
-            end
-            if keep then
-                for _, entry in ipairs(visible_items) do
-                    if entry.item.id == state.last_seen_id then
-                        return state.last_seen_id
-                    end
-                end
-            end
-        end
         state.last_seen_id = current
         return current
     end
 
-    if config.symbols.sticky_highlight and state.last_seen_id then
-        for _, entry in ipairs(visible_items) do
-            if entry.item.id == state.last_seen_id then
-                return state.last_seen_id
-            end
-        end
+    if state.last_seen_id then
+        return state.last_seen_id
     end
 
     return nil
