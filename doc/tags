@@ -1,0 +1,6 @@
+bento-symbols-behavior	bento-symbols.txt	/*bento-symbols-behavior*
+bento-symbols-commands	bento-symbols.txt	/*bento-symbols-commands*
+bento-symbols-highlights	bento-symbols.txt	/*bento-symbols-highlights*
+bento-symbols-notes	bento-symbols.txt	/*bento-symbols-notes*
+bento-symbols-setup	bento-symbols.txt	/*bento-symbols-setup*
+bento-symbols.nvim	bento-symbols.txt	/*bento-symbols.nvim*

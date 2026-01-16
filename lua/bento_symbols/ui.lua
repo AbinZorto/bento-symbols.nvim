@@ -1119,8 +1119,8 @@ local function set_navigation_keybindings(bind_paging)
 
     save_keymap("n", collapse)
     vim.keymap.set("n", collapse, function()
-        require("bento_symbols.ui").collapse_menu()
-    end, { silent = true, desc = "Bento Symbols: Collapse menu" })
+        require("bento_symbols.ui").close_menu()
+    end, { silent = true, desc = "Bento Symbols: Close menu" })
     table.insert(selection_mode_keymaps, collapse)
 
     if is_expanded then
@@ -1748,6 +1748,10 @@ function M.refresh_symbols()
     refresh_symbols()
 end
 
+function M.close_menu()
+    close_menu()
+end
+
 function M.expand_menu()
     if not win_id or not vim.api.nvim_win_is_valid(win_id) then
         return
@@ -1869,9 +1873,6 @@ end
 function M.prev_page()
     local _, _, needs_pagination = get_pagination_info()
     if not needs_pagination then
-        if #state.path == 0 then
-            M.collapse_menu()
-        end
         return
     end
     if current_page > 1 then
@@ -1881,8 +1882,6 @@ function M.prev_page()
         else
             render_collapsed()
         end
-    elseif #state.path == 0 then
-        M.collapse_menu()
     end
 end
 
