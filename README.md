@@ -60,6 +60,7 @@ vim.keymap.set("n", "<leader>cs", ":BentoSymbols<CR>", { desc = "Bento Symbols" 
 - In drilldown mode, selecting a parent jumps to it and enters its children.
   Selecting a leaf jumps and collapses to dashed lines.
 - In flat mode, selecting a symbol jumps and collapses to dashed lines.
+- In flat mode, go_back/go_forward keys filter depth (hide/show deepest levels).
 
 If your server returns `SymbolInformation` instead of hierarchical
 `DocumentSymbol`, the list is flat (no tree).

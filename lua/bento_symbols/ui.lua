@@ -25,6 +25,8 @@ local state = {
     locked = false,
     suppress_auto_page = false,
     last_selected_id = nil,
+    flat_max_depth = nil,
+    flat_max_depth_limit = nil,
 }
 
 local refresh_visible_items
@@ -664,19 +666,38 @@ local function get_current_items()
     return node.children or {}
 end
 
-local function build_flat_items(items, depth, out)
+local function build_flat_items(items, depth, out, max_depth)
+    if max_depth ~= nil and depth > max_depth then
+        return
+    end
     for _, item in ipairs(items) do
         table.insert(out, { item = item, depth = depth })
         if item.children and #item.children > 0 then
-            build_flat_items(item.children, depth + 1, out)
+            build_flat_items(item.children, depth + 1, out, max_depth)
         end
     end
+end
+
+local function get_max_depth(items, depth)
+    local max_depth = depth
+    for _, item in ipairs(items) do
+        if item.children and #item.children > 0 then
+            local child_max = get_max_depth(item.children, depth + 1)
+            if child_max > max_depth then
+                max_depth = child_max
+            end
+        end
+    end
+    return max_depth
 end
 
 refresh_visible_items = function()
     local visible = {}
     if config.symbols.view == "flat" then
-        build_flat_items(state.items, 0, visible)
+        if state.flat_max_depth == nil then
+            state.flat_max_depth = state.flat_max_depth_limit or 0
+        end
+        build_flat_items(state.items, 0, visible, state.flat_max_depth)
     else
         local items = get_current_items()
         local depth = #state.path
@@ -685,6 +706,44 @@ refresh_visible_items = function()
         end
     end
     state.visible_items = visible
+end
+
+local function adjust_flat_max_depth(delta)
+    if config.symbols.view ~= "flat" then
+        return
+    end
+    local limit = state.flat_max_depth_limit or 0
+    if state.flat_max_depth == nil then
+        state.flat_max_depth = limit
+    end
+    local next_depth = state.flat_max_depth + delta
+    if next_depth < 0 then
+        next_depth = 0
+    elseif next_depth > limit then
+        next_depth = limit
+    end
+    if next_depth == state.flat_max_depth then
+        return
+    end
+    state.flat_max_depth = next_depth
+    refresh_visible_items()
+    local _, total_pages, needs_pagination = get_pagination_info()
+    if needs_pagination then
+        if current_page > total_pages then
+            current_page = total_pages
+        elseif current_page < 1 then
+            current_page = 1
+        end
+    else
+        current_page = 1
+    end
+    if win_id and vim.api.nvim_win_is_valid(win_id) then
+        if is_expanded then
+            render_expanded()
+        else
+            render_dashed()
+        end
+    end
 end
 
 local function index_items(items)
@@ -1242,6 +1301,22 @@ local function set_navigation_keybindings(bind_paging)
                 end, { silent = true, desc = "Bento Symbols: Back" })
                 table.insert(selection_mode_keymaps, go_back)
             end
+        elseif config.symbols.view == "flat" then
+            if go_forward ~= page_next then
+                save_keymap("n", go_forward)
+                vim.keymap.set("n", go_forward, function()
+                    require("bento_symbols.ui").history_forward()
+                end, { silent = true, desc = "Bento Symbols: Level up" })
+                table.insert(selection_mode_keymaps, go_forward)
+            end
+
+            if go_back ~= page_prev then
+                save_keymap("n", go_back)
+                vim.keymap.set("n", go_back, function()
+                    require("bento_symbols.ui").history_back()
+                end, { silent = true, desc = "Bento Symbols: Level down" })
+                table.insert(selection_mode_keymaps, go_back)
+            end
         end
     end
 
@@ -1670,6 +1745,8 @@ local function apply_symbols(result, bufnr)
     index_items(items)
     state.flat_items = {}
     build_flat_items(state.items, 0, state.flat_items)
+    state.flat_max_depth_limit = get_max_depth(state.items, 0)
+    state.flat_max_depth = state.flat_max_depth_limit
     refresh_visible_items()
     if
         config.symbols.view == "drilldown"
@@ -2085,10 +2162,18 @@ function M.go_back()
 end
 
 function M.history_back()
+    if config.symbols.view == "flat" then
+        adjust_flat_max_depth(1)
+        return
+    end
     navigate_history("back")
 end
 
 function M.history_forward()
+    if config.symbols.view == "flat" then
+        adjust_flat_max_depth(-1)
+        return
+    end
     navigate_history("forward")
 end
 
