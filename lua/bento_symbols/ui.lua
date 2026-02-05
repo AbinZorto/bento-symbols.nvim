@@ -1941,7 +1941,6 @@ function M.select_item(idx)
     if not entry then
         return
     end
-
     local item = entry.item
     if config.symbols.view ~= "flat" and item.children and #item.children > 0 then
         if config.symbols.drilldown_auto_enter_children == false then
@@ -1950,12 +1949,16 @@ function M.select_item(idx)
             else
                 state.last_selected_id = item.id
                 jump_to_item(item)
+                local path_ids = get_path_ids()
+                table.insert(path_ids, item.id)
+                state.forward_stack = { { path_ids = path_ids, page = 1 } }
                 if config.symbols.drilldown_auto_lock_on_select then
                     state.locked = true
                 end
                 return
             end
         end
+        state.forward_stack = {}
         if config.symbols.auto_page_drilldown ~= false then
             state.suppress_auto_page = true
         end
@@ -1975,6 +1978,9 @@ function M.select_item(idx)
     end
     state.last_selected_id = nil
     jump_to_item(item)
+    if config.symbols.view ~= "flat" then
+        state.forward_stack = {}
+    end
     if config.symbols.view == "flat" then
         if config.symbols.flat_auto_lock_on_select then
             state.locked = true
