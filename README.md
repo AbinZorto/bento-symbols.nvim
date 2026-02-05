@@ -81,6 +81,7 @@ require("bento_symbols").setup({
         show_kind = true, -- Append kind name (e.g. [Function])
         indent = "  ", -- Indentation per tree depth
         view = "drilldown", -- "drilldown" | "flat"
+        labels = nil, -- nil | "smart" | "firstchar_numbered" | { drilldown = "...", flat = "...", default = "..." }
         kind_highlights = {}, -- Override kind highlight groups by symbol kind id
         fuzzy_seen = true, -- Use cursor line proximity to pick current symbol
         auto_page_flat = true, -- Auto-switch page to show current symbol in flat view

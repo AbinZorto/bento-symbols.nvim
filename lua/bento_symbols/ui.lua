@@ -98,6 +98,40 @@ local line_keys = {
     "9",
 }
 
+local superscript_digits = {
+    ["0"] = "⁰",
+    ["1"] = "¹",
+    ["2"] = "²",
+    ["3"] = "³",
+    ["4"] = "⁴",
+    ["5"] = "⁵",
+    ["6"] = "⁶",
+    ["7"] = "⁷",
+    ["8"] = "⁸",
+    ["9"] = "⁹",
+}
+
+local function to_superscript(value)
+    local str = tostring(value)
+    local out = {}
+    for i = 1, #str do
+        local ch = string.sub(str, i, i)
+        table.insert(out, superscript_digits[ch] or ch)
+    end
+    return table.concat(out)
+end
+
+local function get_label_mode()
+    local labels = config.symbols and config.symbols.labels or nil
+    if type(labels) == "string" then
+        return labels
+    end
+    if type(labels) == "table" then
+        return labels[config.symbols.view] or labels.default
+    end
+    return "smart"
+end
+
 local symbol_kind_names = {
     [1] = "File",
     [2] = "Module",
@@ -941,6 +975,98 @@ local function assign_smart_labels(items, available_keys)
     return label_assignment
 end
 
+local function next_available_label(used_labels, available_keys, state)
+    while state.single_idx <= #available_keys do
+        local key = available_keys[state.single_idx]
+        state.single_idx = state.single_idx + 1
+        if not used_labels[key] then
+            return key
+        end
+    end
+
+    while true do
+        local first_idx = math.floor((state.multi_idx - 1) / #available_keys) + 1
+        local second_idx = ((state.multi_idx - 1) % #available_keys) + 1
+        if first_idx > #available_keys then
+            return nil
+        end
+        local key = available_keys[first_idx] .. available_keys[second_idx]
+        state.multi_idx = state.multi_idx + 1
+        if not used_labels[key] then
+            return key
+        end
+    end
+end
+
+local function assign_firstchar_numbered_labels(items, available_keys)
+    local label_assignment = {}
+    local used_labels = {}
+    local groups = {}
+    local fallback_indices = {}
+
+    for i, entry in ipairs(items) do
+        local name = entry.item.name or ""
+        local first_alnum = name:match("[%w]")
+        if first_alnum then
+            local base = string.lower(first_alnum)
+            if not groups[base] then
+                groups[base] = {}
+            end
+            table.insert(groups[base], i)
+        else
+            table.insert(fallback_indices, i)
+        end
+    end
+
+    for base, indices in pairs(groups) do
+        if #indices == 1 then
+            local idx = indices[1]
+            local key = base
+            if not used_labels[key] then
+                label_assignment[idx] = { key = key, display = key }
+                used_labels[key] = true
+            end
+        else
+            local width = #tostring(#indices)
+            for pos, idx in ipairs(indices) do
+                local suffix = string.format("%0" .. width .. "d", pos)
+                local key = base .. suffix
+                local display = base .. to_superscript(suffix)
+                if not used_labels[key] then
+                    label_assignment[idx] = { key = key, display = display }
+                    used_labels[key] = true
+                end
+            end
+        end
+    end
+
+    local fallback_state = { single_idx = 1, multi_idx = 1 }
+    for _, idx in ipairs(fallback_indices) do
+        local key = next_available_label(used_labels, available_keys, fallback_state)
+        if not key then
+            break
+        end
+        label_assignment[idx] = { key = key, display = key }
+        used_labels[key] = true
+    end
+
+    return label_assignment
+end
+
+local function assign_labels(items, available_keys)
+    local mode = get_label_mode()
+    if mode == "firstchar_numbered" then
+        return assign_firstchar_numbered_labels(items, available_keys)
+    end
+
+    local smart = assign_smart_labels(items, available_keys)
+    local label_assignment = {}
+    for i, label in pairs(smart) do
+        label_assignment[i] = { key = label, display = label }
+    end
+    return label_assignment
+end
+
 local function calculate_position(height, width)
     local ui = vim.api.nvim_list_uis()[1]
     local floating = config.ui.floating
@@ -1143,16 +1269,17 @@ local function set_selection_keybindings(smart_labels, base_index)
     end
 
     for i, label in pairs(smart_labels) do
-        if label and label ~= " " then
-            save_keymap("n", label)
+        local key = type(label) == "table" and label.key or label
+        if key and key ~= " " then
+            save_keymap("n", key)
             local absolute_index = (base_index or 1) + i - 1
-            vim.keymap.set("n", label, function()
+            vim.keymap.set("n", key, function()
                 require("bento_symbols.ui").select_item(absolute_index)
             end, {
                 silent = true,
                 desc = "Bento Symbols: Select item " .. absolute_index,
             })
-            table.insert(selection_mode_keymaps, label)
+            table.insert(selection_mode_keymaps, key)
         end
     end
 
@@ -1256,7 +1383,7 @@ render_expanded = function(is_minimal_full)
 
     setup_state()
     local visible_items, start_idx = get_page_items()
-    local smart_labels = assign_smart_labels(visible_items, line_keys)
+    local smart_labels = assign_labels(visible_items, line_keys)
     local current_id = get_current_symbol_id_for_visible(state.visible_items)
     local current_hl = current_id and get_current_highlight() or nil
     local parent_ids = current_id and get_parent_ids(current_id) or {}
@@ -1313,7 +1440,10 @@ render_expanded = function(is_minimal_full)
 
     for i, entry in ipairs(visible_items) do
         local item = entry.item
-        local label = smart_labels[i] or " "
+        local label_data = smart_labels[i]
+        local label = label_data and label_data.display or " "
+        local label_width = vim.fn.strwidth(label)
+        local label_bytes = #label
         local indent = string.rep(indent_unit, entry.depth)
         local indicator = ""
         local parent_mark = parent_ids[item.id] and (parent_marker .. " ") or ""
@@ -1333,11 +1463,12 @@ render_expanded = function(is_minimal_full)
         local content_width = vim.fn.strwidth(display_name)
             + 1
             + padding
-            + #label
+            + label_width
             + padding
         max_content_width = math.max(max_content_width, content_width)
         table.insert(all_line_data, {
             label = label,
+            label_bytes = label_bytes,
             display_name = display_name,
             content_width = content_width,
             name_prefix_len = #indent + #parent_mark + #spacer,
@@ -1407,7 +1538,7 @@ render_expanded = function(is_minimal_full)
             local display_name_start = padding + left_space
             local display_name_end = display_name_start + display_name_bytes
             local label_start = display_name_end + 1 + padding
-            local label_end = label_start + #label + padding
+            local label_end = label_start + data.label_bytes + padding
 
             local label_hl = config.highlights.label_jump
             if is_minimal_full then

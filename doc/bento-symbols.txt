@@ -20,6 +20,7 @@ Example:
           show_kind = true,
           indent = "  ",
           view = "drilldown", -- "drilldown" | "flat"
+          labels = nil, -- nil | "smart" | "firstchar_numbered" | { drilldown = "...", flat = "...", default = "..." }
           kind_highlights = {},
           fuzzy_seen = true,
           auto_page_flat = true,
