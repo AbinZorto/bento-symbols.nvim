@@ -1950,6 +1950,9 @@ function M.select_item(idx)
             else
                 state.last_selected_id = item.id
                 jump_to_item(item)
+                if config.symbols.drilldown_auto_lock_on_select then
+                    state.locked = true
+                end
                 return
             end
         end
@@ -1959,6 +1962,9 @@ function M.select_item(idx)
         jump_to_item(item)
         if enter_item(item) then
             current_page = 1
+            if config.symbols.drilldown_auto_lock_on_select then
+                state.locked = true
+            end
             if is_expanded then
                 render_expanded()
             else
@@ -1981,6 +1987,9 @@ function M.select_item(idx)
         return
     end
     if not item.children or #item.children == 0 then
+        if config.symbols.drilldown_auto_lock_on_select then
+            state.locked = true
+        end
         if config.symbols.drilldown_auto_lock_on_leaf_select then
             state.locked = true
         end

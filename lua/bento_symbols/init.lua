@@ -165,6 +165,7 @@ function M.setup(config)
             flat_auto_lock_on_select = false,
             drilldown_keep_expanded_on_leaf_select = false,
             drilldown_auto_lock_on_leaf_select = false,
+            drilldown_auto_lock_on_select = false,
             drilldown_auto_enter_children = false,
             name_truncate_ratio = 0.25,
         },
