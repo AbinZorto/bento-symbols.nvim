@@ -70,6 +70,7 @@ If your server returns `SymbolInformation` instead of hierarchical
 - `ESC` collapses to dashed lines
 - `<C-h>` / `<C-l>` moves between pages when pagination is active
 - Label keys jump or drill down depending on view and symbol type
+- When `drilldown_auto_enter_children = false`, press the label key twice on a parent to enter its children
 
 ## Configuration
 
@@ -91,6 +92,7 @@ require("bento_symbols").setup({
         flat_auto_lock_on_select = false, -- Auto-lock after select in flat view
         drilldown_keep_expanded_on_leaf_select = false, -- Keep expanded after leaf select
         drilldown_auto_lock_on_leaf_select = false, -- Auto-lock after leaf select
+        drilldown_auto_enter_children = false, -- Auto-enter children on first select in drilldown
         name_truncate_ratio = 0.25, -- Max name width as ratio of window width
     },
     ui = {

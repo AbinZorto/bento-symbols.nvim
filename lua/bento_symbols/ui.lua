@@ -23,6 +23,8 @@ local state = {
     back_stack = {},
     forward_stack = {},
     locked = false,
+    suppress_auto_page = false,
+    last_selected_id = nil,
 }
 
 local refresh_visible_items
@@ -1277,7 +1279,7 @@ render_expanded = function(is_minimal_full)
     local max_content_width = 0
     local all_line_data = {}
     if #visible_items == 0 then
-        local message = state.pending and "Loading symbols..." or "No symbols"
+        local message = state.pending and "Loading symbols..." or ""
         local line = padding_str .. message .. padding_str
         contents[1] = line
         local total_width = vim.fn.strwidth(line)
@@ -1606,11 +1608,6 @@ local function apply_symbols(result, bufnr)
     end
 
     if #state.visible_items == 0 then
-        vim.notify(
-            "No symbols found",
-            vim.log.levels.INFO,
-            { title = "Bento Symbols" }
-        )
         if win_id and vim.api.nvim_win_is_valid(win_id) then
             if is_expanded then
                 render_expanded()
@@ -1816,6 +1813,18 @@ function M.select_item(idx)
 
     local item = entry.item
     if config.symbols.view ~= "flat" and item.children and #item.children > 0 then
+        if config.symbols.drilldown_auto_enter_children == false then
+            if state.last_selected_id == item.id then
+                state.last_selected_id = nil
+            else
+                state.last_selected_id = item.id
+                jump_to_item(item)
+                return
+            end
+        end
+        if config.symbols.auto_page_drilldown ~= false then
+            state.suppress_auto_page = true
+        end
         jump_to_item(item)
         if enter_item(item) then
             current_page = 1
@@ -1827,6 +1836,7 @@ function M.select_item(idx)
             return
         end
     end
+    state.last_selected_id = nil
     jump_to_item(item)
     if config.symbols.view == "flat" then
         if config.symbols.flat_auto_lock_on_select then
@@ -1912,7 +1922,11 @@ function M.update_cursor_highlight()
         return
     end
     ensure_current_symbol_page_flat()
-    ensure_current_symbol_context_and_page_drilldown()
+    if state.suppress_auto_page then
+        state.suppress_auto_page = false
+    else
+        ensure_current_symbol_context_and_page_drilldown()
+    end
     if is_expanded then
         render_expanded()
     else
