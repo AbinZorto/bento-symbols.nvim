@@ -570,9 +570,55 @@ local function get_current_highlight()
     return config.highlights.current or "Visual"
 end
 
+local class_like_kinds = {
+    [5] = true, -- Class
+    [11] = true, -- Interface
+    [23] = true, -- Struct
+}
+
+local method_like_kinds = {
+    [6] = true, -- Method
+    [9] = true, -- Constructor
+    [12] = true, -- Function
+}
+
+local variable_like_kinds = {
+    [7] = true, -- Property
+    [8] = true, -- Field
+    [13] = true, -- Variable
+}
+
+local function is_class_like_variable(item)
+    if not item or not variable_like_kinds[item.kind] then
+        return false
+    end
+    local parent = item.parent_id and state.by_id[item.parent_id] or nil
+    if not parent or not class_like_kinds[parent.kind] then
+        return false
+    end
+    if not parent.children or #parent.children == 0 then
+        return false
+    end
+    for _, child in ipairs(parent.children) do
+        if method_like_kinds[child.kind] then
+            return true
+        end
+    end
+    return false
+end
+
 local function get_kind_highlight(item)
     local custom = config.symbols.kind_highlights or {}
-    return custom[item.kind] or symbol_kind_highlights[item.kind] or config.highlights.symbol
+    if custom[item.kind] then
+        return custom[item.kind]
+    end
+    if is_class_like_variable(item) then
+        return symbol_kind_highlights[7]
+            or symbol_kind_highlights[8]
+            or symbol_kind_highlights[item.kind]
+            or config.highlights.symbol
+    end
+    return symbol_kind_highlights[item.kind] or config.highlights.symbol
 end
 
 local function setup_state()
