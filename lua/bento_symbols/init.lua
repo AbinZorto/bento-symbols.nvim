@@ -116,6 +116,7 @@ function M.setup(config)
         default_action = "enter",
         ui = {
             mode = "floating",
+            debug_ts_params = false,
             floating = {
                 position = "middle-right",
                 offset_x = 0,

@@ -27,6 +27,7 @@ local state = {
     last_selected_id = nil,
     flat_max_depth = nil,
     flat_max_depth_limit = nil,
+    ts_param_cache = {},
 }
 
 local refresh_visible_items
@@ -227,6 +228,25 @@ local function range_contains_range(outer, inner)
     local inner_end = { inner["end"].line or 0, inner["end"].character or 0 }
     return range_contains({ start = outer_start, ["end"] = outer_end }, inner_start)
         and range_contains({ start = outer_start, ["end"] = outer_end }, inner_end)
+end
+
+local function range_overlaps(a, b)
+    if not a or not a.start or not a["end"] then
+        return false
+    end
+    if not b or not b.start or not b["end"] then
+        return false
+    end
+    local a_start = { a.start.line or 0, a.start.character or 0 }
+    local a_end = { a["end"].line or 0, a["end"].character or 0 }
+    local b_start = { b.start.line or 0, b.start.character or 0 }
+    local b_end = { b["end"].line or 0, b["end"].character or 0 }
+
+    local a_before_b = a_end[1] < b_start[1]
+        or (a_end[1] == b_start[1] and a_end[2] < b_start[2])
+    local b_before_a = b_end[1] < a_start[1]
+        or (b_end[1] == a_start[1] and b_end[2] < a_start[2])
+    return not (a_before_b or b_before_a)
 end
 
 local function range_touches_line(range, line)
@@ -570,6 +590,16 @@ local function get_current_highlight()
     return config.highlights.current or "Visual"
 end
 
+local function get_parameter_highlight()
+    if vim.fn.hlexists("@lsp.type.parameter") == 1 then
+        return "@lsp.type.parameter"
+    end
+    if vim.fn.hlexists("@parameter") == 1 then
+        return "@parameter"
+    end
+    return config.highlights.symbol
+end
+
 local class_like_kinds = {
     [5] = true, -- Class
     [11] = true, -- Interface
@@ -587,6 +617,90 @@ local variable_like_kinds = {
     [8] = true, -- Field
     [13] = true, -- Variable
 }
+
+local function get_python_param_ranges(bufnr)
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+        return nil
+    end
+    local ft = vim.api.nvim_buf_get_option(bufnr, "filetype")
+    if ft ~= "python" then
+        return nil
+    end
+    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+    local cache = state.ts_param_cache[bufnr]
+    if cache and cache.tick == tick then
+        return cache.ranges
+    end
+
+    local ok_parser, parser = pcall(vim.treesitter.get_parser, bufnr, "python")
+    if not ok_parser or not parser then
+        return nil
+    end
+    local query = vim.treesitter.query.get("python", "highlights")
+    if not query then
+        local ok_query, fallback = pcall(vim.treesitter.query.parse, "python", [[
+          (parameters (identifier) @param)
+          (parameters (typed_parameter name: (identifier) @param))
+          (parameters (default_parameter name: (identifier) @param))
+          (parameters (typed_default_parameter name: (identifier) @param))
+          (parameters (list_splat_pattern (identifier) @param))
+          (parameters (dictionary_splat_pattern (identifier) @param))
+        ]])
+        if ok_query then
+            query = fallback
+        end
+    end
+    if not query then
+        return nil
+    end
+
+    local ranges = {}
+    local tree = parser:parse()[1]
+    local root = tree and tree:root() or nil
+    if root then
+        for capture_id, node in query:iter_captures(root, bufnr, 0, -1) do
+            local name = query.captures[capture_id]
+            if name == "param" or (name and name:find("parameter")) then
+                local s_row, s_col, e_row, e_col = node:range()
+                table.insert(ranges, {
+                    start = { line = s_row, character = s_col },
+                    ["end"] = { line = e_row, character = e_col },
+                })
+            end
+        end
+    end
+
+    if config.ui and config.ui.debug_ts_params then
+        vim.notify(
+            "Bento Symbols: Python TS param captures: " .. tostring(#ranges),
+            vim.log.levels.INFO
+        )
+    end
+
+    state.ts_param_cache[bufnr] = { tick = tick, ranges = ranges }
+    return ranges
+end
+
+local function is_parameter_like_ts(item)
+    if not item or not variable_like_kinds[item.kind] then
+        return false
+    end
+    local bufnr = item.bufnr or state.last_bufnr
+    local ranges = get_python_param_ranges(bufnr)
+    if not ranges or #ranges == 0 then
+        return false
+    end
+    local item_range = item.selection_range or item.range
+    if not item_range or not item_range.start or not item_range["end"] then
+        return false
+    end
+    for _, param_range in ipairs(ranges) do
+        if range_overlaps(param_range, item_range) then
+            return true
+        end
+    end
+    return false
+end
 
 local function is_class_like_variable(item)
     if not item or not variable_like_kinds[item.kind] then
@@ -611,6 +725,9 @@ local function get_kind_highlight(item)
     local custom = config.symbols.kind_highlights or {}
     if custom[item.kind] then
         return custom[item.kind]
+    end
+    if is_parameter_like_ts(item) then
+        return get_parameter_highlight()
     end
     if is_class_like_variable(item) then
         return symbol_kind_highlights[7]

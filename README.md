@@ -100,6 +100,7 @@ require("bento_symbols").setup({
     },
     ui = {
         mode = "floating",
+        debug_ts_params = false, -- Debug Python Tree-sitter parameter captures
         floating = {
             position = "middle-right",
             offset_x = 0,
